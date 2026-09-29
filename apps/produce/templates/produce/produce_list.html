@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Produce — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Produce</h1>
+  <a href="{% url 'produce:produce_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">+ Add Item</a>
+</div>
+
+{% if expired %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+  <h2 class="font-medium text-red-800 mb-2">Expired Items</h2>
+  <div class="flex flex-wrap gap-2">
+    {% for item in expired %}
+    <a href="{% url 'produce:produce_detail' item.pk %}" class="text-sm bg-red-100 text-red-800 px-3 py-1 rounded-full hover:bg-red-200">{{ item.name }} (exp {{ item.expiry_date }})</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if items %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-4 py-3 text-left">Item</th>
+          <th class="px-4 py-3 text-left">Source</th>
+          <th class="px-4 py-3 text-left">Storage</th>
+          <th class="px-4 py-3 text-right">Quantity</th>
+          <th class="px-4 py-3 text-left">Expiry</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for item in items %}
+        <tr class="hover:bg-gray-50 {% if item.is_expired %}bg-red-50{% endif %}">
+          <td class="px-4 py-3 font-medium text-gray-900"><a href="{% url 'produce:produce_detail' item.pk %}" class="hover:text-farm-600">{{ item.name }}</a></td>
+          <td class="px-4 py-3 text-gray-600">{{ item.get_source_display }}</td>
+          <td class="px-4 py-3 text-gray-600">{{ item.get_storage_type_display }}</td>
+          <td class="px-4 py-3 text-right font-medium">{{ item.quantity }} {{ item.unit }}</td>
+          <td class="px-4 py-3 {% if item.is_expired %}text-red-700 font-medium{% else %}text-gray-600{% endif %}">{{ item.expiry_date|default:"—" }}</td>
+          <td class="px-4 py-3 text-right"><a href="{% url 'produce:transaction_create' item.pk %}" class="text-farm-600 hover:text-farm-700 text-xs">+ Transaction</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="text-center py-12 text-gray-500">
+  <p class="text-lg">No produce items tracked yet.</p>
+</div>
+{% endif %}
+{% endblock %}

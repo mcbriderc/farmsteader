@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Equipment — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Equipment</h1>
+  <a href="{% url 'equipment:equipment_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">+ Add Equipment</a>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for eq in equipment %}
+  <a href="{% url 'equipment:equipment_detail' eq.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-semibold text-gray-900">{{ eq.name }}</h2>
+      <span class="text-xs font-medium px-2 py-1 rounded-full
+        {% if eq.status == 'active' %}bg-green-100 text-green-700
+        {% elif eq.status == 'maintenance' %}bg-yellow-100 text-yellow-700
+        {% else %}bg-gray-100 text-gray-500{% endif %}">
+        {{ eq.get_status_display }}
+      </span>
+    </div>
+    <div class="text-sm text-gray-600">
+      {% if eq.brand %}{{ eq.brand }}{% endif %}
+      {% if eq.model_name %} {{ eq.model_name }}{% endif %}
+      {% if eq.year %} ({{ eq.year }}){% endif %}
+    </div>
+    <div class="flex gap-4 mt-2 text-xs text-gray-500">
+      {% if eq.hours %}<span>{{ eq.hours }} hrs</span>{% endif %}
+      {% if eq.next_service %}<span class="text-orange-600">Next service: {{ eq.next_service.next_service_date }}</span>{% endif %}
+    </div>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="text-lg">No equipment yet.</p>
+    <a href="{% url 'equipment:equipment_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Add your first piece of equipment</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Livestock — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Livestock</h1>
+    <p class="text-gray-500 text-sm mt-1">{{ animals|length }} animal{{ animals|length|pluralize }}</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'livestock:feed_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Feed Inventory
+    </a>
+    <a href="{% url 'livestock:animal_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+      + Add Animal
+    </a>
+  </div>
+</div>
+
+{# Filters #}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
+  <form method="get" class="flex flex-wrap gap-3 items-end">
+    <div>
+      <label for="filter-q" class="block text-xs font-medium text-gray-500 mb-1">Search</label>
+      <input id="filter-q" type="text" name="q" value="{{ search_query }}" placeholder="Tag, name, breed..."
+             class="rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border w-40">
+    </div>
+    <div>
+      <label for="filter-species" class="block text-xs font-medium text-gray-500 mb-1">Species</label>
+      <select id="filter-species" name="species" class="rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border">
+        <option value="">All</option>
+        {% for val, label in species_choices %}
+        <option value="{{ val }}" {% if current_species == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="filter-status" class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+      <select id="filter-status" name="status" class="rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border">
+        <option value="">All</option>
+        {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if current_status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Filter
+    </button>
+    {% if search_query or current_species or current_status %}
+    <a href="{% url 'livestock:animal_list' %}" class="text-sm text-gray-500 hover:text-gray-700 py-2">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Animal cards #}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for animal in animals %}
+  <a href="{% url 'livestock:animal_detail' animal.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-semibold text-gray-900">{{ animal.ear_tag }}</h2>
+      <span class="text-xs font-medium px-2 py-1 rounded-full
+        {% if animal.status == 'active' %}bg-green-100 text-green-700
+        {% elif animal.status == 'sold' %}bg-yellow-100 text-yellow-700
+        {% elif animal.status == 'deceased' %}bg-gray-100 text-gray-500
+        {% else %}bg-blue-100 text-blue-700{% endif %}">
+        {{ animal.get_status_display }}
+      </span>
+    </div>
+    {% if animal.name %}<p class="text-sm text-gray-600 mb-2">{{ animal.name }}</p>{% endif %}
+    <div class="grid grid-cols-2 gap-1 text-xs text-gray-500">
+      <span>{{ animal.get_species_display }}</span>
+      <span>{{ animal.get_gender_display }}</span>
+      <span>{{ animal.breed|default:"—" }}</span>
+      <span>{{ animal.current_field.name|default:"No field" }}{% if animal.days_in_current_field is not None %} ({{ animal.days_in_current_field }}d){% endif %}</span>
+    </div>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="text-lg">No animals yet.</p>
+    <a href="{% url 'livestock:animal_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Add your first animal</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

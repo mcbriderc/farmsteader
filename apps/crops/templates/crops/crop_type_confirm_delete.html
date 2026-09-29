@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Delete Crop Type — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-12">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-6">
+    <h1 class="text-xl font-bold text-gray-900 mb-2">Delete Crop Type</h1>
+    <p class="text-gray-600 mb-4">Delete <strong>{{ crop_type.name }}</strong>? This will also remove any associated market prices.</p>
+    <form method="post" class="flex gap-3">
+      {% csrf_token %}
+      <button type="submit" class="bg-danger hover:bg-danger-hover text-white font-medium py-2 px-4 rounded-lg transition">Delete</button>
+      <a href="{% url 'crops:crop_type_detail' crop_type.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg transition">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

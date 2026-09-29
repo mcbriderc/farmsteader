@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Harvests — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Harvest Records</h1>
+  <div class="flex gap-2">
+    <a href="{% url 'crops:crop_record_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Crop Records</a>
+    <a href="{% url 'crops:crop_type_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Crop Types</a>
+    <a href="{% url 'crops:harvest_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">+ Add Harvest</a>
+  </div>
+</div>
+
+{% if harvests %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-4 py-3 text-left">Date</th>
+          <th class="px-4 py-3 text-left">Crop</th>
+          <th class="px-4 py-3 text-left">Field</th>
+          <th class="px-4 py-3 text-right">Yield</th>
+          <th class="px-4 py-3 text-right">Revenue</th>
+          <th class="px-4 py-3 text-right">Cost</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for h in harvests %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 font-medium text-gray-900">{{ h.harvest_date }}</td>
+          <td class="px-4 py-3">{{ h.crop_type.name }}</td>
+          <td class="px-4 py-3">{{ h.field.name }}</td>
+          <td class="px-4 py-3 text-right">{{ h.yield_amount }} {{ h.yield_unit }}</td>
+          <td class="px-4 py-3 text-right text-green-700">{% if h.revenue %}${{ h.revenue }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right">${{ h.cost }}</td>
+          <td class="px-4 py-3 text-right">
+            <a href="{% url 'crops:harvest_edit' h.pk %}" class="text-farm-600 hover:text-farm-700 text-xs">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="text-center py-12 text-gray-500">
+  <p class="text-lg">No harvest records yet.</p>
+  <a href="{% url 'crops:harvest_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Record your first harvest</a>
+</div>
+{% endif %}
+{% endblock %}

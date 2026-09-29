@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ crop_type.name }} — FarmSteader{% endblock %}
+
+{% block content %}
+<a href="{% url 'crops:crop_type_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Crop Types</a>
+<div class="flex items-center justify-between mt-1 mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">{{ crop_type.name }}</h1>
+  <div class="flex gap-2">
+    <a href="{% url 'crops:crop_type_edit' crop_type.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+    <a href="{% url 'crops:crop_type_delete' crop_type.pk %}" class="bg-surface border border-red-300 text-red-600 hover:bg-red-50 font-medium py-2 px-4 rounded-lg text-sm transition">Delete</a>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {# Market Prices #}
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5">
+    <h2 class="font-semibold text-gray-900 mb-3">Market Prices</h2>
+    {% if prices %}
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-3 py-2 text-left">Year</th>
+          <th class="px-3 py-2 text-left">State</th>
+          <th class="px-3 py-2 text-right">Price</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for p in prices %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 font-medium">{{ p.year }}</td>
+          <td class="px-3 py-2">{{ p.state }}</td>
+          <td class="px-3 py-2 text-right">${{ p.price_per_unit }} {{ p.unit }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-gray-500">No price data. Prices sync daily from USDA NASS (requires API key).</p>
+    {% endif %}
+  </div>
+
+  {# Your Harvests #}
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5">
+    <h2 class="font-semibold text-gray-900 mb-3">Your Harvests</h2>
+    {% if harvests %}
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-3 py-2 text-left">Date</th>
+          <th class="px-3 py-2 text-left">Field</th>
+          <th class="px-3 py-2 text-right">Yield</th>
+          <th class="px-3 py-2 text-right">Revenue</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for h in harvests %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 font-medium">{{ h.harvest_date }}</td>
+          <td class="px-3 py-2">{{ h.field.name }}</td>
+          <td class="px-3 py-2 text-right">{{ h.yield_amount }} {{ h.yield_unit }}</td>
+          <td class="px-3 py-2 text-right">{% if h.revenue %}${{ h.revenue }}{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-gray-500">No harvests recorded for this crop.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Import / Export Data — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Import / Export Data</h1>
+  <p class="text-gray-600 mt-1">Download or upload CSV and XLSX files for any data type.</p>
+</div>
+
+<div class="bg-farm-50 border border-farm-200 rounded-xl p-4 mb-6 flex items-start justify-between gap-4 flex-wrap">
+  <div>
+    <h2 class="font-semibold text-gray-900">Backing up the whole farm?</h2>
+    <p class="text-sm text-gray-600 mt-1">
+      The spreadsheets below are per-table and leave out field boundaries and photos. For a complete,
+      restorable copy — before reinstalling or upgrading — use Backup / Restore.
+    </p>
+  </div>
+  <a href="{% url 'data_io:backup' %}"
+     class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-6 rounded-lg transition whitespace-nowrap">
+    Backup / Restore
+  </a>
+</div>
+
+{% for group_name, items in grouped.items %}
+<div class="mb-6">
+  <h2 class="text-lg font-semibold text-gray-900 mb-3">{{ group_name }}</h2>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-4 py-2 text-left">Data Type</th>
+          <th class="px-4 py-2 text-right">Records</th>
+          <th class="px-4 py-2 text-right">Export</th>
+          <th class="px-4 py-2 text-right">Import</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for item in items %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-2 font-medium text-gray-900">{{ item.label }}</td>
+          <td class="px-4 py-2 text-right text-gray-600">{{ item.count }}</td>
+          <td class="px-4 py-2 text-right">
+            <a href="{% url 'data_io:export' item.key %}?format=csv" class="text-farm-600 hover:text-farm-700 text-xs font-medium mr-2">CSV</a>
+            <a href="{% url 'data_io:export' item.key %}?format=xlsx" class="text-farm-600 hover:text-farm-700 text-xs font-medium">XLSX</a>
+          </td>
+          <td class="px-4 py-2 text-right">
+            <a href="{% url 'data_io:import' item.key %}" class="text-farm-600 hover:text-farm-700 text-xs font-medium">Upload</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

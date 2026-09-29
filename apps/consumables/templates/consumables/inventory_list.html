@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Consumables — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Consumables Inventory</h1>
+  <div class="flex gap-2">
+    <a href="{% url 'consumables:consumable_type_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Consumable Types</a>
+    <a href="{% url 'consumables:inventory_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">+ Add Item</a>
+  </div>
+</div>
+
+{% if low_stock %}
+<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
+  <h2 class="font-medium text-orange-800 mb-2">Low Stock Alerts</h2>
+  <div class="flex flex-wrap gap-2">
+    {% for item in low_stock %}
+    <a href="{% url 'consumables:inventory_detail' item.pk %}" class="text-sm bg-orange-100 text-orange-800 px-3 py-1 rounded-full hover:bg-orange-200 transition">
+      {{ item.name }}: {{ item.quantity }} {{ item.unit }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if items %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-4 py-3 text-left">Item</th>
+          <th class="px-4 py-3 text-left">Type</th>
+          <th class="px-4 py-3 text-right">Quantity</th>
+          <th class="px-4 py-3 text-right">Reorder At</th>
+          <th class="px-4 py-3 text-left">Location</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for item in items %}
+        <tr class="hover:bg-gray-50 {% if item.is_low_stock %}bg-orange-50{% endif %}">
+          <td class="px-4 py-3 font-medium text-gray-900">
+            <a href="{% url 'consumables:inventory_detail' item.pk %}" class="hover:text-farm-600">{{ item.name }}</a>
+          </td>
+          <td class="px-4 py-3 text-gray-600">{{ item.consumable_type.name }}</td>
+          <td class="px-4 py-3 text-right font-medium {% if item.is_low_stock %}text-orange-700{% else %}text-gray-900{% endif %}">
+            {{ item.quantity }} {{ item.unit }}
+          </td>
+          <td class="px-4 py-3 text-right text-gray-500">{{ item.reorder_threshold }} {{ item.unit }}</td>
+          <td class="px-4 py-3 text-gray-600">{{ item.storage_location|default:"—" }}</td>
+          <td class="px-4 py-3 text-right">
+            <a href="{% url 'consumables:transaction_create' item.pk %}" class="text-farm-600 hover:text-farm-700 text-xs">+ Transaction</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="text-center py-12 text-gray-500">
+  <p class="text-lg">No inventory items yet.</p>
+  <a href="{% url 'consumables:inventory_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Add your first item</a>
+</div>
+{% endif %}
+{% endblock %}

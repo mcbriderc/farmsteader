@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if editing %}Edit {{ building.name }}{% else %}Add Building{% endif %} — FarmSteader{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'vendor/css/leaflet.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+  <a href="{% if editing %}{% url 'buildings:building_detail' building.pk %}{% else %}{% url 'buildings:building_list' %}{% endif %}"
+     class="text-sm text-farm-600 hover:text-farm-700">&larr; Back</a>
+  <h1 class="text-2xl font-bold text-gray-900 mt-1 mb-6">{% if editing %}Edit Building{% else %}Add Building{% endif %}</h1>
+
+  <form method="post" enctype="multipart/form-data" id="building-form">
+    {% csrf_token %}
+
+    {% if form.errors %}
+    <div class="bg-red-50 text-red-700 text-sm rounded-lg p-3 mb-4">
+      {% for field_name, errors in form.errors.items %}{% for error in errors %}<p>{{ error }}</p>{% endfor %}{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 mb-4">
+      <h2 class="font-semibold text-gray-900 mb-3">Location (click map to place pin)</h2>
+      <div class="flex gap-2 mb-3">
+        <input type="text" id="address-search" placeholder="Search by address or place name..."
+               class="flex-1 rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border">
+        <button type="button" id="address-search-btn" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">Go</button>
+      </div>
+      <div id="search-error" class="text-sm text-red-600 mb-2" style="display:none;"></div>
+      <div id="map" class="w-full rounded-lg border border-gray-200" style="height: 300px;"></div>
+      {{ form.latitude }}
+      {{ form.longitude }}
+    </div>
+
+    <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-6 mb-4 space-y-4">
+      {% for field in form %}
+        {% if field.name != 'latitude' and field.name != 'longitude' %}
+        <div>
+          <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
+          {{ field }}
+          {% if field.help_text %}<p class="text-xs text-gray-400 mt-1">{{ field.help_text }}</p>{% endif %}
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <div class="flex gap-3">
+      <button type="submit" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-6 rounded-lg transition">{% if editing %}Update{% else %}Add{% endif %}</button>
+      <a href="{% if editing %}{% url 'buildings:building_detail' building.pk %}{% else %}{% url 'buildings:building_list' %}{% endif %}"
+         class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-6 rounded-lg transition">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/js/leaflet.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  L.Icon.Default.prototype.options.imagePath = '{% static "vendor/images/" %}';
+  const latInput = document.getElementById('id_latitude');
+  const lonInput = document.getElementById('id_longitude');
+  const initLat = parseFloat(latInput.value) || 39.8283;
+  const initLon = parseFloat(lonInput.value) || -98.5795;
+  const initZoom = latInput.value ? 17 : 5;
+
+  const map = L.map('map').setView([initLat, initLon], initZoom);
+  const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
+  });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri', maxZoom: 19,
+  });
+  street.addTo(map);
+  L.control.layers({'Street': street, 'Satellite': satellite}).addTo(map);
+
+  let marker = latInput.value ? L.marker([initLat, initLon]).addTo(map) : null;
+
+  map.on('click', function(e) {
+    if (marker) map.removeLayer(marker);
+    marker = L.marker(e.latlng).addTo(map);
+    latInput.value = e.latlng.lat.toFixed(6);
+    lonInput.value = e.latlng.lng.toFixed(6);
+  });
+
+  // Address search via Nominatim
+  const searchInput = document.getElementById('address-search');
+  const searchBtn = document.getElementById('address-search-btn');
+  const searchError = document.getElementById('search-error');
+
+  function doAddressSearch() {
+    const query = searchInput.value.trim();
+    if (!query) return;
+    searchError.style.display = 'none';
+    searchBtn.textContent = '...';
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(query), {
+      headers: { 'Accept': 'application/json' },
+    })
+      .then(r => r.json())
+      .then(results => {
+        searchBtn.textContent = 'Go';
+        if (results.length === 0) {
+          searchError.textContent = 'No results found. Try a different address.';
+          searchError.style.display = 'block';
+          return;
+        }
+        const lat = parseFloat(results[0].lat);
+        const lon = parseFloat(results[0].lon);
+        map.setView([lat, lon], 16);
+      })
+      .catch(() => {
+        searchBtn.textContent = 'Go';
+        searchError.textContent = 'Search failed. Please try again.';
+        searchError.style.display = 'block';
+      });
+  }
+
+  searchBtn.addEventListener('click', doAddressSearch);
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); doAddressSearch(); }
+  });
+
+  {% if not editing %}
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+    });
+  }
+  {% endif %}
+});
+</script>
+{% endblock %}

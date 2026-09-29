@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Welcome to {{ current_farm.name }}</h1>
+  <p class="text-gray-600 mt-1">Farm management dashboard</p>
+</div>
+
+<div class="mb-2 flex items-center justify-between">
+  <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Farm Overview</h2>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  <a href="{% url 'land:field_list' %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:border-farm-300 transition">
+    <div class="text-sm font-medium text-gray-500">Fields</div>
+    <div class="text-2xl font-bold text-gray-900 mt-1">{{ field_count }}</div>
+  </a>
+  <a href="{% url 'livestock:animal_list' %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:border-farm-300 transition">
+    <div class="text-sm font-medium text-gray-500">Livestock</div>
+    <div class="text-2xl font-bold text-gray-900 mt-1">{{ animal_count }}</div>
+  </a>
+  <a href="{% url 'equipment:equipment_list' %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:border-farm-300 transition">
+    <div class="text-sm font-medium text-gray-500">Equipment</div>
+    <div class="text-2xl font-bold text-gray-900 mt-1">{{ equipment_count }}</div>
+  </a>
+  <a href="{% url 'buildings:building_list' %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:border-farm-300 transition">
+    <div class="text-sm font-medium text-gray-500">Buildings</div>
+    <div class="text-2xl font-bold text-gray-900 mt-1">{{ building_count }}</div>
+  </a>
+  <a href="{% url 'employment:task_board' %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:border-farm-300 transition">
+    <div class="text-sm font-medium text-gray-500">Open Tasks</div>
+    <div class="text-2xl font-bold text-gray-900 mt-1">{{ open_task_count }}</div>
+  </a>
+  <a href="{% url 'consumables:inventory_list' %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:border-farm-300 transition {% if low_stock_count %}border-yellow-300 bg-yellow-50{% endif %}">
+    <div class="text-sm font-medium {% if low_stock_count %}text-yellow-700{% else %}text-gray-500{% endif %}">Low Stock Items</div>
+    <div class="text-2xl font-bold {% if low_stock_count %}text-yellow-700{% else %}text-gray-900{% endif %} mt-1">{{ low_stock_count }}</div>
+  </a>
+  <a href="{% url 'produce:produce_list' %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:border-farm-300 transition">
+    <div class="text-sm font-medium text-gray-500">Produce</div>
+    <div class="text-2xl font-bold text-gray-900 mt-1">{{ produce_count }}</div>
+  </a>
+  <a href="{% url 'livestock:feed_list' %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:border-farm-300 transition {% if low_feed_count %}border-yellow-300 bg-yellow-50{% endif %}">
+    <div class="text-sm font-medium {% if low_feed_count %}text-yellow-700{% else %}text-gray-500{% endif %}">Low Feed Stock</div>
+    <div class="text-2xl font-bold {% if low_feed_count %}text-yellow-700{% else %}text-gray-900{% endif %} mt-1">{{ low_feed_count }}</div>
+  </a>
+  {% if expired_produce_count %}
+  <a href="{% url 'produce:produce_list' %}" class="bg-red-50 rounded-xl shadow-sm border border-red-200 p-5 hover:border-red-300 transition">
+    <div class="text-sm font-medium text-red-700">Expired Produce</div>
+    <div class="text-2xl font-bold text-red-700 mt-1">{{ expired_produce_count }}</div>
+  </a>
+  {% endif %}
+</div>
+
+{# Commodity Prices #}
+{% if commodity_prices %}
+<div class="mt-6 mb-2 flex items-center justify-between">
+  <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Market Prices</h2>
+  <span class="text-xs text-gray-400">CME futures &middot; via Yahoo Finance &middot; as of {{ commodity_prices.0.date }}</span>
+</div>
+<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+  {% for p in commodity_prices %}
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs font-medium text-gray-500 uppercase tracking-wide">{{ p.commodity }}</div>
+    <div class="text-lg font-bold text-gray-900 mt-1">${{ p.price }}</div>
+    <div class="text-xs text-gray-400">{{ p.unit }}</div>
+    {% if p.change is not None %}
+    <div class="text-xs mt-1 font-medium {% if p.change >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+      {% if p.change >= 0 %}+{% endif %}{{ p.change }}
+      {% if p.change_pct is not None %}({% if p.change_pct >= 0 %}+{% endif %}{{ p.change_pct }}%){% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# Action Items feed #}
+<div class="mt-6 mb-2">
+  <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Action Items</h2>
+</div>
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5">
+  <p class="text-xs text-gray-400 mb-4">Overdue maintenance, urgent tasks, and vet follow-ups</p>
+  {% if action_items %}
+  <ul class="divide-y divide-gray-100">
+    {% for item in action_items %}
+    <li class="py-3 flex items-start gap-3">
+      <span class="mt-0.5 shrink-0 text-xs font-medium px-2 py-0.5 rounded-full
+        {% if item.type == 'equipment' %}bg-orange-100 text-orange-700
+        {% elif item.type == 'building' %}bg-blue-100 text-blue-700
+        {% elif item.type == 'task' %}bg-purple-100 text-purple-700
+        {% else %}bg-red-100 text-red-700{% endif %}">
+        {{ item.label }}
+      </span>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-medium text-gray-900 truncate">{{ item.title }}</p>
+        <p class="text-xs text-gray-500">{{ item.subtitle }}</p>
+      </div>
+      {% if item.due %}
+      <span class="text-xs whitespace-nowrap {% if item.due < today %}text-red-600 font-medium{% else %}text-gray-400{% endif %}">
+        {{ item.due }}
+      </span>
+      {% endif %}
+      <a href="{{ item.url }}" class="shrink-0 text-xs text-farm-600 hover:text-farm-700 whitespace-nowrap">View &rarr;</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-sm text-gray-400 py-2">All clear &mdash; nothing due today.</p>
+  {% endif %}
+</div>
+{% endblock %}

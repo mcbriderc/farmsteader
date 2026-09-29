@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Crop Records — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-1">
+  <h1 class="text-2xl font-bold text-gray-900">Crop Records</h1>
+  <div class="flex gap-2">
+    <a href="{% url 'crops:crop_type_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Crop Types</a>
+    <a href="{% url 'crops:harvest_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Harvests</a>
+  </div>
+</div>
+{% comment %}
+  A crop record belongs to a field, so it is created there rather than here --
+  there is no "+ Add" button, and the empty state points at the field list.
+{% endcomment %}
+<p class="text-sm text-gray-500 mb-6">What is planted on each field. Added from a field's Crops tab.</p>
+
+{# Filters #}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
+  <form method="get" class="flex flex-wrap gap-3 items-end">
+    <div>
+      <label for="filter-q" class="block text-xs font-medium text-gray-500 mb-1">Search</label>
+      <input id="filter-q" type="text" name="q" value="{{ search_query }}" placeholder="Crop or variety..."
+             class="rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border w-40">
+    </div>
+    <div>
+      <label for="filter-season" class="block text-xs font-medium text-gray-500 mb-1">Season</label>
+      <select id="filter-season" name="season" class="rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border">
+        <option value="">All</option>
+        {% for s in seasons %}
+        <option value="{{ s }}" {% if current_season == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="filter-status" class="block text-xs font-medium text-gray-500 mb-1">Status</label>
+      <select id="filter-status" name="status" class="rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border">
+        <option value="">All</option>
+        {% for val, label in status_choices %}
+        <option value="{{ val }}" {% if current_status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Filter
+    </button>
+    {% if search_query or current_season or current_status %}
+    <a href="{% url 'crops:crop_record_list' %}" class="text-sm text-gray-500 hover:text-gray-700 py-2">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if records %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-4 py-3 text-left">Crop</th>
+          <th class="px-4 py-3 text-left">Field</th>
+          <th class="px-4 py-3 text-left">Season</th>
+          <th class="px-4 py-3 text-left">Status</th>
+          <th class="px-4 py-3 text-left">Planted</th>
+          <th class="px-4 py-3 text-right">Yield</th>
+          <th class="px-4 py-3 text-right">Cost</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for cr in records %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-3 font-medium text-gray-900">{{ cr.crop_name }}{% if cr.variety %} <span class="text-gray-400">({{ cr.variety }})</span>{% endif %}</td>
+          <td class="px-4 py-3">
+            <a href="{% url 'land:field_detail' cr.field.pk %}" class="text-farm-600 hover:text-farm-700">{{ cr.field.name }}</a>
+          </td>
+          <td class="px-4 py-3">{{ cr.season }}</td>
+          <td class="px-4 py-3">
+            {% comment %}
+              Same badge palette as the field detail Crops tab. These stock
+              colours re-theme themselves in dark mode -- see input.css.
+            {% endcomment %}
+            <span class="text-xs font-medium px-2 py-1 rounded-full
+              {% if cr.status == 'harvested' %}bg-green-100 text-green-700
+              {% elif cr.status == 'failed' %}bg-red-100 text-red-700
+              {% elif cr.status == 'growing' %}bg-blue-100 text-blue-700
+              {% else %}bg-gray-100 text-gray-600{% endif %}">
+              {{ cr.get_status_display }}
+            </span>
+          </td>
+          <td class="px-4 py-3">{% if cr.planted_date %}{{ cr.planted_date }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right">{% if cr.yield_amount %}{{ cr.yield_amount }} {{ cr.yield_unit }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right">${{ cr.cost }}</td>
+          <td class="px-4 py-3 text-right">
+            <a href="{% url 'land:crop_record_edit' cr.field.pk cr.pk %}" class="text-farm-600 hover:text-farm-700 text-xs">Edit</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="text-center py-12 text-gray-500">
+  {% if search_query or current_season or current_status %}
+  <p class="text-lg">No crop records match those filters.</p>
+  <a href="{% url 'crops:crop_record_list' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Clear filters</a>
+  {% else %}
+  <p class="text-lg">No crop records yet.</p>
+  <a href="{% url 'land:field_list' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Add one from a field</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

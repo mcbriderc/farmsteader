@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ equipment.name }} — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{% url 'equipment:equipment_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Equipment</a>
+      <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ equipment.name }}</h1>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'equipment:equipment_edit' equipment.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+      <a href="{% url 'equipment:equipment_delete' equipment.pk %}" class="bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium py-2 px-4 rounded-lg text-sm transition">Delete</a>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Brand / Model</div>
+    <div class="font-bold text-gray-900 mt-1">{{ equipment.brand|default:"—" }}</div>
+    <div class="text-sm text-gray-600">{{ equipment.model_name|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Year</div>
+    <div class="font-bold text-gray-900 mt-1">{{ equipment.year|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Hours</div>
+    <div class="font-bold text-gray-900 mt-1">{% if equipment.hours %}{{ equipment.hours }}{% else %}—{% endif %}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Status</div>
+    <div class="font-bold text-gray-900 mt-1">{{ equipment.get_status_display }}</div>
+  </div>
+</div>
+
+{% if equipment.next_service %}
+<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
+  <div class="flex items-center gap-2 text-orange-800">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.072 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+    <span class="font-medium">Next service due: {{ equipment.next_service.next_service_date }}</span>
+    {% if equipment.next_service.next_service_hours %}<span class="text-sm">(or at {{ equipment.next_service.next_service_hours }} hrs)</span>{% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# Maintenance log #}
+<div class="mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-lg font-semibold text-gray-900">Maintenance Log</h2>
+    <a href="{% url 'equipment:maintenance_create' equipment.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">+ Add Record</a>
+  </div>
+
+  {% if maintenance %}
+  <div class="space-y-3">
+    {% for m in maintenance %}
+    <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">{{ m.get_maintenance_type_display }}</span>
+          <span class="text-sm font-medium text-gray-900">{{ m.date }}</span>
+        </div>
+        <a href="{% url 'equipment:maintenance_edit' equipment.pk m.pk %}" class="text-xs text-farm-600 hover:text-farm-700">Edit</a>
+      </div>
+      <p class="text-sm text-gray-700">{{ m.description }}</p>
+      <div class="flex gap-4 mt-2 text-xs text-gray-500">
+        {% if m.performed_by %}<span>By: {{ m.performed_by }}</span>{% endif %}
+        {% if m.cost %}<span>Cost: ${{ m.cost }}</span>{% endif %}
+        {% if m.hours_at_service %}<span>At {{ m.hours_at_service }} hrs</span>{% endif %}
+        {% if m.next_service_date %}<span class="text-orange-600">Next: {{ m.next_service_date }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-gray-500 text-sm py-4">No maintenance records yet.</p>
+  {% endif %}
+</div>
+
+{% if equipment.notes %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5">
+  <h2 class="font-semibold text-gray-900 mb-2">Notes</h2>
+  <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ equipment.notes }}</p>
+</div>
+{% endif %}
+{% endblock %}

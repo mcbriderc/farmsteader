@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}{{ employee }} — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{% url 'employment:employee_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Employees</a>
+      <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ employee }}</h1>
+    </div>
+    <a href="{% url 'employment:employee_edit' employee.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase">Role</div>
+    <div class="font-bold text-gray-900 mt-1">{{ employee.role|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase">Status</div>
+    <div class="font-bold text-gray-900 mt-1">{{ employee.get_status_display }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase">Hire Date</div>
+    <div class="font-bold text-gray-900 mt-1">{{ employee.hire_date|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase">Rate</div>
+    <div class="font-bold text-gray-900 mt-1">{% if employee.hourly_rate %}${{ employee.hourly_rate }}/hr{% else %}—{% endif %}</div>
+  </div>
+</div>
+
+<div x-data="{ tab: 'tasks' }">
+  <div class="border-b border-gray-200 mb-4">
+    <nav class="flex gap-4 -mb-px">
+      <button @click="tab = 'tasks'" :class="tab === 'tasks' ? 'border-farm-500 text-farm-700' : 'border-transparent text-gray-500'" class="py-3 px-1 border-b-2 text-sm font-medium">Tasks ({{ tasks|length }})</button>
+      <button @click="tab = 'time'" :class="tab === 'time' ? 'border-farm-500 text-farm-700' : 'border-transparent text-gray-500'" class="py-3 px-1 border-b-2 text-sm font-medium">Time Entries ({{ time_entries|length }})</button>
+    </nav>
+  </div>
+
+  <div x-show="tab === 'tasks'">
+    {% for t in tasks %}
+    <div class="bg-surface rounded-lg shadow-sm border border-gray-200 p-3 mb-2">
+      <div class="flex items-center justify-between">
+        <a href="{% url 'employment:task_edit' t.pk %}" class="font-medium text-gray-900 hover:text-farm-600">{{ t.title }}</a>
+        <span class="text-xs px-2 py-1 rounded-full {% if t.priority == 'urgent' %}bg-red-100 text-red-700{% elif t.priority == 'high' %}bg-orange-100 text-orange-700{% else %}bg-gray-100 text-gray-600{% endif %}">{{ t.get_priority_display }}</span>
+      </div>
+      <div class="text-xs text-gray-500 mt-1">{{ t.get_status_display }}{% if t.due_date %} &middot; Due {{ t.due_date }}{% endif %}</div>
+    </div>
+    {% empty %}<p class="text-gray-500 text-sm">No tasks assigned.</p>
+    {% endfor %}
+  </div>
+
+  <div x-show="tab === 'time'" style="display:none;">
+    {% if time_entries %}
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs"><tr><th class="px-4 py-2 text-left">Date</th><th class="px-4 py-2 text-right">Hours</th><th class="px-4 py-2 text-left">Description</th></tr></thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for te in time_entries %}
+        <tr class="hover:bg-gray-50"><td class="px-4 py-2">{{ te.date }}</td><td class="px-4 py-2 text-right font-medium">{{ te.hours }}h</td><td class="px-4 py-2 text-gray-600">{{ te.description|default:"—" }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}<p class="text-gray-500 text-sm">No time entries.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

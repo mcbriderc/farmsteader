@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{% url 'consumables:inventory_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Inventory</a>
+      <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ item.name }}</h1>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'consumables:inventory_edit' item.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+      <a href="{% url 'consumables:inventory_delete' item.pk %}" class="bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium py-2 px-4 rounded-lg text-sm transition">Delete</a>
+    </div>
+  </div>
+</div>
+
+{% if item.is_low_stock %}
+<div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6 text-orange-800 font-medium">
+  Low stock! Current: {{ item.quantity }} {{ item.unit }} (reorder threshold: {{ item.reorder_threshold }})
+</div>
+{% endif %}
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Quantity</div>
+    <div class="text-xl font-bold {% if item.is_low_stock %}text-orange-700{% else %}text-gray-900{% endif %} mt-1">{{ item.quantity }} {{ item.unit }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Type</div>
+    <div class="font-bold text-gray-900 mt-1">{{ item.consumable_type.name }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Unit Cost</div>
+    <div class="font-bold text-gray-900 mt-1">{% if item.unit_cost %}${{ item.unit_cost }}{% else %}—{% endif %}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Location</div>
+    <div class="font-bold text-gray-900 mt-1">{{ item.storage_location|default:"—" }}</div>
+  </div>
+</div>
+
+<div class="flex items-center justify-between mb-3">
+  <h2 class="text-lg font-semibold text-gray-900">Transaction History</h2>
+  <a href="{% url 'consumables:transaction_create' item.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">+ Add Transaction</a>
+</div>
+
+{% if transactions %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-4 py-2 text-left">Date</th>
+          <th class="px-4 py-2 text-left">Type</th>
+          <th class="px-4 py-2 text-right">Quantity</th>
+          <th class="px-4 py-2 text-right">Unit Cost</th>
+          <th class="px-4 py-2 text-left">Reference</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for txn in transactions %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-2 font-medium text-gray-900">{{ txn.date }}</td>
+          <td class="px-4 py-2">
+            <span class="text-xs font-medium px-2 py-1 rounded-full
+              {% if txn.transaction_type == 'purchase' %}bg-green-100 text-green-700
+              {% elif txn.transaction_type == 'use' %}bg-blue-100 text-blue-700
+              {% elif txn.transaction_type == 'waste' %}bg-red-100 text-red-700
+              {% else %}bg-gray-100 text-gray-600{% endif %}">
+              {{ txn.get_transaction_type_display }}
+            </span>
+          </td>
+          <td class="px-4 py-2 text-right font-medium {% if txn.quantity > 0 %}text-green-700{% else %}text-red-700{% endif %}">
+            {{ txn.quantity }} {{ item.unit }}
+          </td>
+          <td class="px-4 py-2 text-right">{% if txn.unit_cost %}${{ txn.unit_cost }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-2 text-gray-600">{{ txn.reference|default:"—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<p class="text-gray-500 text-sm py-4">No transactions yet.</p>
+{% endif %}
+{% endblock %}

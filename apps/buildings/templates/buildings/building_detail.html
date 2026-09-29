@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ building.name }} — FarmSteader{% endblock %}
+
+{% block extra_css %}
+{% if building.location %}
+<link rel="stylesheet" href="{% static 'vendor/css/leaflet.css' %}">
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{% url 'buildings:building_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Buildings</a>
+      <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ building.name }}</h1>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'buildings:building_edit' building.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+      <a href="{% url 'buildings:building_delete' building.pk %}" class="bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium py-2 px-4 rounded-lg text-sm transition">Delete</a>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Type</div>
+    <div class="font-bold text-gray-900 mt-1">{{ building.get_building_type_display }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Year Built</div>
+    <div class="font-bold text-gray-900 mt-1">{{ building.year_built|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Square Feet</div>
+    <div class="font-bold text-gray-900 mt-1">{{ building.square_feet|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Assessed Value</div>
+    <div class="font-bold text-gray-900 mt-1">{% if building.assessed_value %}${{ building.assessed_value }}{% else %}—{% endif %}</div>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Insurance</div>
+    <div class="font-medium text-gray-900 mt-1">{{ building.insurance_policy|default:"—" }}</div>
+    {% if building.insurance_annual %}<div class="text-sm text-gray-600">${{ building.insurance_annual }}/yr</div>{% endif %}
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Annual Tax</div>
+    <div class="font-bold text-gray-900 mt-1">{% if building.tax_annual %}${{ building.tax_annual }}{% else %}—{% endif %}</div>
+  </div>
+</div>
+
+{% if building.location %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+  <div id="map" class="w-full rounded-lg" style="height: 250px;"></div>
+</div>
+{% endif %}
+
+{# Maintenance log #}
+<div class="mb-6">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-lg font-semibold text-gray-900">Maintenance Log</h2>
+    <a href="{% url 'buildings:maintenance_create' building.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">+ Add Record</a>
+  </div>
+  {% if maintenance %}
+  <div class="space-y-3">
+    {% for m in maintenance %}
+    <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">{{ m.get_maintenance_type_display }}</span>
+          <span class="text-sm font-medium text-gray-900">{{ m.date }}</span>
+        </div>
+        <a href="{% url 'buildings:maintenance_edit' building.pk m.pk %}" class="text-xs text-farm-600 hover:text-farm-700">Edit</a>
+      </div>
+      <p class="text-sm text-gray-700">{{ m.description }}</p>
+      <div class="flex gap-4 mt-2 text-xs text-gray-500">
+        {% if m.contractor %}<span>By: {{ m.contractor }}</span>{% endif %}
+        {% if m.cost %}<span>Cost: ${{ m.cost }}</span>{% endif %}
+        {% if m.next_due_date %}<span class="text-orange-600">Next: {{ m.next_due_date }}</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-gray-500 text-sm py-4">No maintenance records yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if building.location %}
+<script src="{% static 'vendor/js/leaflet.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  L.Icon.Default.prototype.options.imagePath = '{% static "vendor/images/" %}';
+  const map = L.map('map').setView([{{ building.lat }}, {{ building.lon }}], 17);
+  const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
+  });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri', maxZoom: 19,
+  });
+  street.addTo(map);
+  L.control.layers({'Street': street, 'Satellite': satellite}).addTo(map);
+  L.marker([{{ building.lat }}, {{ building.lon }}]).addTo(map)
+    .bindPopup('{{ building.name }}').openPopup();
+});
+</script>
+{% endif %}
+{% endblock %}

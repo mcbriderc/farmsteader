@@ -1,0 +1,248 @@
+@import "tailwindcss";
+
+@source "../../apps/**/templates/**/*.html";
+
+/* Class-based dark mode. Tailwind v4 defaults `dark:` to prefers-color-scheme;
+   we drive it from a `dark` class on <html> so the user can override the OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-farm-50: #f0fdf4;
+  --color-farm-100: #dcfce7;
+  --color-farm-200: #bbf7d0;
+  --color-farm-300: #86efac;
+  --color-farm-400: #4ade80;
+  --color-farm-500: #22c55e;
+  --color-farm-600: #16a34a;
+  --color-farm-700: #15803d;
+  --color-farm-800: #166534;
+  --color-farm-900: #14532d;
+
+  /* Semantic tokens.
+     These exist because the stock class they replace is ambiguous between
+     themes: `bg-white` is a card surface but `text-white` is text on a colored
+     fill, and `bg-farm-600` is a button fill but `text-farm-600` is link text.
+     Splitting them lets the dark block below remap the stock scales freely. */
+  --color-canvas: #f9fafb;         /* page background        (was bg-gray-50)  */
+  --color-surface: #ffffff;        /* cards, panels, tables  (was bg-white)    */
+  --color-accent: #16a34a;         /* primary button fill    (was bg-farm-600) */
+  --color-accent-hover: #15803d;   /* primary + sidebar hover(was bg-farm-700) */
+  --color-danger: #dc2626;         /* destructive fill       (was bg-red-600)  */
+  --color-danger-hover: #b91c1c;   /* destructive hover      (was bg-red-700)  */
+}
+
+/* Default text colour.
+
+   Remapping the colour variables only re-themes elements that carry a `text-*`
+   utility. Anything without one -- 52 of the 86 <td> in the templates, plus
+   assorted <p> and <span> -- inherits the browser default of black, which is
+   invisible on a dark surface. Anchoring <body> to the same variable the
+   `text-gray-900` utility uses makes those elements follow the theme.
+
+   In the base layer, so any explicit `text-*` utility still wins. In light mode
+   this shifts default text from #000 to #111827, which is what the templates
+   already ask for wherever they are explicit. */
+@layer base {
+  body {
+    color: var(--color-gray-900);
+  }
+}
+
+/* Form control surfaces.
+
+   Tailwind's preflight resets every control to
+   `background-color: transparent; color: inherit`. On a white page that is
+   invisible; in dark mode it is the one place `color-scheme: dark` cannot
+   rescue, because an author-set background beats the UA field colour. The
+   symptom is a <select> whose option popup is drawn on the browser's white
+   default while its text inherits the near-white body colour -- unreadable.
+
+   So give the text-entry controls an explicit themed surface. <option> and
+   <optgroup> need it in their own right: the popup is a separate box and does
+   not inherit the select's background.
+
+   Checkboxes, radios, and the button-like inputs are excluded -- those are
+   painted by the browser and are already handled by `color-scheme`; giving
+   them a background would flatten their native appearance instead.
+
+   In the base layer, so an explicit `bg-*`/`text-*` utility still wins. Light
+   mode is unchanged: --color-surface is #ffffff, which is what a transparent
+   control over a white card already rendered as. */
+@layer base {
+  select,
+  textarea,
+  option,
+  optgroup,
+  input:not(
+    [type="checkbox"], [type="radio"], [type="range"], [type="color"],
+    [type="file"], [type="submit"], [type="button"], [type="reset"], [type="image"]
+  ) {
+    background-color: var(--color-surface);
+    color: var(--color-gray-900);
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Dark theme.
+
+   Tailwind v4 compiles every color utility to a custom property reference
+   (`.bg-white{background-color:var(--color-white)}`), so redefining the
+   variables here re-themes ~1,200 existing utility classes with no template
+   changes and no additional CSS rules.
+
+   Consequence: inside this app the stock neutrals are SEMANTIC, not literal.
+   `text-gray-900` means "primary text" and is near-white in dark mode. Never
+   reach for a stock color expecting a fixed value -- see tests/test_theming.py.
+
+   `html.dark` (0,1,1) outranks `:root` (0,1,0), so source order is not
+   load-bearing here.
+   --------------------------------------------------------------------------- */
+html.dark {
+  /* Native controls -- checkboxes, radios, scrollbars, date pickers -- are
+     painted by the browser and ignore the variables below. This is the only
+     thing that darkens them; without it unchecked checkboxes are white slabs. */
+  color-scheme: dark;
+
+  /* Surfaces. The ladder is canvas < surface < gray-50, so a card sits above
+     the page and a hovered row sits above the card. */
+  --color-canvas: #0d1014;    /* page  -- deliberately darker than a card */
+  --color-surface: #20252e;   /* cards */
+
+  /* Neutrals. Roles invert: -50..-300 are surfaces/borders, -400..-900 is text. */
+  --color-gray-50: #272d37;   /* table headers, row hover, sunken panels */
+  --color-gray-100: #2e3540;  /* dividers, chips */
+  --color-gray-200: #343b47;  /* card borders */
+  --color-gray-300: #3f4753;  /* input borders */
+  --color-gray-400: #767f8c;  /* icons, placeholders */
+  --color-gray-500: #9aa2ae;  /* muted text */
+  --color-gray-600: #b0b8c3;
+  --color-gray-700: #ccd2da;  /* form labels */
+  --color-gray-800: #dde2e9;
+  --color-gray-900: #e9edf2;  /* headings, body text */
+
+  /* Accent scales. -50/-100/-200 become dark tints (badge and alert
+     backgrounds), -600/-700/-800 become light (badge and alert text).
+     Safe only because the solid fills moved to --color-accent/--color-danger. */
+  --color-farm-50: #12261a;
+  --color-farm-100: #163020;
+  --color-farm-600: #4ade80;
+  --color-farm-700: #86efac;
+
+  --color-red-50: #2a1618;
+  --color-red-100: #37191c;
+  --color-red-200: #4d2429;
+  --color-red-300: #6b3138;
+  --color-red-600: #f87171;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fecaca;
+
+  --color-green-50: #10231a;
+  --color-green-100: #14301f;
+  --color-green-200: #1d4430;
+  --color-green-600: #4ade80;
+  --color-green-700: #86efac;
+  --color-green-800: #bbf7d0;
+
+  --color-yellow-50: #2a2110;
+  --color-yellow-100: #362a12;
+  --color-yellow-200: #4a3a18;
+  --color-yellow-300: #5e4a1e;
+  --color-yellow-600: #facc15;
+  --color-yellow-700: #fde047;
+  --color-yellow-800: #fef08a;
+
+  --color-blue-50: #131f2e;
+  --color-blue-100: #172838;
+  --color-blue-200: #1f374d;
+  --color-blue-600: #60a5fa;
+  --color-blue-700: #93c5fd;
+  --color-blue-800: #bfdbfe;
+
+  --color-orange-50: #2b1a10;
+  --color-orange-100: #382113;
+  --color-orange-200: #4d2e19;
+  --color-orange-600: #fb923c;
+  --color-orange-700: #fdba74;
+  --color-orange-800: #fed7aa;
+
+  --color-purple-100: #2a1c3d;
+  --color-purple-700: #c4b5fd;
+}
+
+/* Deliberately NOT remapped above:
+     --color-white      `text-white` is text on a colored fill (buttons, sidebar)
+     --color-black      only used as bg-black/50, the mobile sidebar scrim
+     --color-farm-300   sidebar icons, already on dark green
+     --color-farm-500   focus rings and active borders, reads well on both
+     --color-farm-800   the sidebar itself, dark green in both themes
+     --color-accent*    button fills stay green; also the sidebar nav hover
+     --color-danger*    destructive button fills stay red                      */
+
+/* Theme toggle icons. Both are rendered; CSS picks one, so there is no JS
+   state to keep in sync with the class on <html>.
+
+   The button advertises the theme it switches TO, not the one you are in --
+   it sits among actions (Settings, Switch Farm, Logout), so it reads as one.
+   Light mode shows the moon and "Dark Mode"; dark mode shows the sun and
+   "Light Mode". */
+.icon-sun {
+  display: none;
+}
+html.dark .icon-sun {
+  display: block;
+}
+html.dark .icon-moon {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Leaflet chrome.
+
+   leaflet.css is loaded per-page via {% block extra_css %}, i.e. AFTER this
+   file. That is fine: `html.dark .leaflet-bar a` (0,2,2) outranks Leaflet's own
+   `.leaflet-bar a` (0,1,1) and `.leaflet-touch .leaflet-bar a` (0,2,1).
+
+   leaflet-draw's container carries BOTH `leaflet-draw-toolbar` and
+   `leaflet-bar`, so the bar rules below exclude it -- it is themed by
+   inversion instead, and painting it dark first would defeat that.
+
+   Tile imagery is left untouched -- only the surrounding widgets are themed.
+   --------------------------------------------------------------------------- */
+html.dark .leaflet-container {
+  background: var(--color-canvas);
+}
+/* `background-color`, never the `background` shorthand: several of these
+   controls carry their icon as a background-image, and the shorthand resets it
+   to none, leaving blank buttons. */
+html.dark .leaflet-popup-content-wrapper,
+html.dark .leaflet-popup-tip,
+html.dark .leaflet-bar:not(.leaflet-draw-toolbar) a,
+html.dark .leaflet-bar:not(.leaflet-draw-toolbar) a:hover,
+html.dark .leaflet-control-layers {
+  background-color: var(--color-surface);
+  color: var(--color-gray-900);
+}
+html.dark .leaflet-bar a {
+  border-bottom-color: var(--color-gray-200);
+}
+html.dark .leaflet-bar:not(.leaflet-draw-toolbar) a:hover {
+  background-color: var(--color-gray-50);
+}
+html.dark .leaflet-control-attribution {
+  background: rgb(32 37 46 / 0.8);
+  color: var(--color-gray-500);
+}
+html.dark .leaflet-control-attribution a {
+  color: var(--color-farm-600);
+}
+/* leaflet-draw ships dark-on-light sprite sheets. Inverting the whole button
+   handles both at once -- the white fill becomes near-black and the dark glyph
+   becomes light -- so this must NOT be paired with a dark background above, or
+   the invert would flip it straight back to light. */
+html.dark .leaflet-draw-toolbar a {
+  filter: invert(1) hue-rotate(180deg);
+}
+html.dark .leaflet-draw-actions a {
+  background-color: var(--color-gray-50);
+  color: var(--color-gray-900);
+}

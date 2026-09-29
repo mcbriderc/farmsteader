@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name }} — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{% url 'produce:produce_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Produce</a>
+      <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ item.name }}</h1>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'produce:produce_edit' item.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+      <a href="{% url 'produce:produce_delete' item.pk %}" class="bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium py-2 px-4 rounded-lg text-sm transition">Delete</a>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase">Quantity</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ item.quantity }} {{ item.unit }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase">Source</div>
+    <div class="font-bold text-gray-900 mt-1">{{ item.get_source_display }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase">Storage</div>
+    <div class="font-bold text-gray-900 mt-1">{{ item.get_storage_type_display }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase">Expiry</div>
+    <div class="font-bold {% if item.is_expired %}text-red-700{% else %}text-gray-900{% endif %} mt-1">{{ item.expiry_date|default:"—" }}</div>
+  </div>
+</div>
+
+<div class="flex items-center justify-between mb-3">
+  <h2 class="text-lg font-semibold text-gray-900">Transactions</h2>
+  <a href="{% url 'produce:transaction_create' item.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">+ Add</a>
+</div>
+
+{% if transactions %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+      <tr><th class="px-4 py-2 text-left">Date</th><th class="px-4 py-2 text-left">Type</th><th class="px-4 py-2 text-right">Qty</th><th class="px-4 py-2 text-right">Cost</th></tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for txn in transactions %}
+      <tr class="hover:bg-gray-50">
+        <td class="px-4 py-2">{{ txn.date }}</td>
+        <td class="px-4 py-2">{{ txn.get_transaction_type_display }}</td>
+        <td class="px-4 py-2 text-right font-medium {% if txn.quantity > 0 %}text-green-700{% else %}text-red-700{% endif %}">{{ txn.quantity }} {{ item.unit }}</td>
+        <td class="px-4 py-2 text-right">{% if txn.cost %}${{ txn.cost }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}<p class="text-gray-500 text-sm py-4">No transactions yet.</p>{% endif %}
+{% endblock %}

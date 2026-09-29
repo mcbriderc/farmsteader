@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Crop Types — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Crop Types</h1>
+  <div class="flex gap-2">
+    <a href="{% url 'crops:crop_record_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Crop Records
+    </a>
+    <a href="{% url 'crops:harvest_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      View Harvests
+    </a>
+    <a href="{% url 'crops:crop_type_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+      + Add Crop Type
+    </a>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for ct in crop_types %}
+  <a href="{% url 'crops:crop_type_detail' ct.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block">
+    <h2 class="font-semibold text-gray-900">{{ ct.name }}</h2>
+    <div class="text-sm text-gray-500 mt-1">
+      {% if ct.category %}{{ ct.category }} &middot; {% endif %}{{ ct.default_unit }}
+    </div>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="mb-3">No crop types configured yet.</p>
+    <a href="{% url 'crops:crop_type_create' %}" class="inline-block bg-accent hover:bg-accent-hover text-white font-medium py-2 px-6 rounded-lg transition">Add Your First Crop Type</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

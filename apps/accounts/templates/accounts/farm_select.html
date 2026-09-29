@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Select Farm — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center">
+  <div class="w-full max-w-sm">
+    <h1 class="text-2xl font-bold text-center text-farm-700 mb-2">Select a Farm</h1>
+    <p class="text-center text-gray-500 mb-6">Choose which farm to manage</p>
+
+    <div class="bg-surface shadow-sm rounded-xl border border-gray-200 divide-y divide-gray-100">
+      {% for farm in farms %}
+      <form method="post" class="flex">
+        {% csrf_token %}
+        <input type="hidden" name="farm_id" value="{{ farm.id }}">
+        <button type="submit" class="w-full text-left px-5 py-4 hover:bg-farm-50 transition flex items-center justify-between">
+          <span class="font-medium text-gray-900">{{ farm.name }}</span>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </form>
+      {% empty %}
+      <div class="px-5 py-4 text-gray-500 text-sm">No farms yet. Create one below.</div>
+      {% endfor %}
+    </div>
+
+    <a href="{% url 'accounts:farm_create' %}"
+       class="mt-4 block w-full text-center bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg transition">
+      Create New Farm
+    </a>
+  </div>
+</div>
+{% endblock %}

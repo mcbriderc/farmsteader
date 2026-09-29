@@ -1,0 +1,22 @@
+[Unit]
+Description=FarmSteader Celery Beat Scheduler
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+Type=simple
+User=farmsteader
+Group=farmsteader
+WorkingDirectory=/opt/farmsteader
+EnvironmentFile=/opt/farmsteader/.env
+ExecStart=/opt/farmsteader/.venv/bin/celery -A config beat \
+    --loglevel=info \
+    --schedule=/run/farmsteader/celerybeat-schedule \
+    --pidfile=/run/farmsteader/celerybeat.pid
+RuntimeDirectory=farmsteader
+LogsDirectory=farmsteader
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

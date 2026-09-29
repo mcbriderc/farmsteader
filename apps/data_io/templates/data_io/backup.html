@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Backup / Restore — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <a href="{% url 'data_io:index' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; Import / Export</a>
+  <h1 class="text-2xl font-bold text-gray-900 mt-1">Backup / Restore</h1>
+  <p class="text-gray-600 mt-1">
+    Download everything in this farm as a single archive — records, field boundaries, photos, and
+    settings — then restore it on any FarmSteader install.
+  </p>
+</div>
+
+{% if errors %}
+<div class="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+  <h2 class="font-medium text-red-800 mb-2">This archive could not be restored</h2>
+  <ul class="text-sm text-red-700 space-y-1 list-disc list-inside">
+    {% for error in errors %}
+    <li>{{ error }}</li>
+    {% endfor %}
+  </ul>
+  {% if dropped_fields %}
+  <p class="text-sm text-red-700 mt-3">
+    Tick <strong>Discard unknown fields</strong> below to restore anyway, without the data those
+    fields hold.
+  </p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="grid gap-6 lg:grid-cols-2">
+
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-200">
+      <h2 class="font-semibold text-gray-900">Download a backup</h2>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-4 py-2 text-left">Included</th>
+          <th class="px-4 py-2 text-right">Records</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for label, count in counts %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-2 text-gray-900">{{ label }}</td>
+          <td class="px-4 py-2 text-right text-gray-600">{{ count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="p-4 border-t border-gray-200 space-y-3">
+      <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+        The archive is <strong>not encrypted</strong> and includes your USDA NASS API key. Store it
+        somewhere private.
+      </p>
+      <p class="text-xs text-gray-400">
+        Weather history and market prices are left out — they re-sync automatically.
+      </p>
+      <a href="{% url 'data_io:backup_download' %}"
+         class="inline-block bg-accent hover:bg-accent-hover text-white font-medium py-2 px-6 rounded-lg transition">
+        Download Backup
+      </a>
+    </div>
+  </div>
+
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-200">
+      <h2 class="font-semibold text-gray-900">Restore from a backup</h2>
+    </div>
+    <form method="post" action="{% url 'data_io:backup_restore' %}"
+          enctype="multipart/form-data" class="p-4 space-y-4">
+      {% csrf_token %}
+
+      <p class="text-sm text-gray-600">
+        Restoring always creates a <strong>new farm</strong> and makes you its owner. Your current
+        farm is never modified, so it is safe to try.
+      </p>
+
+      <div>
+        <label for="restore-archive" class="block text-sm font-medium text-gray-700 mb-1">Backup archive (.zip)</label>
+        <input id="restore-archive" type="file" name="archive" accept=".zip"
+               class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-farm-50 file:text-farm-700 hover:file:bg-farm-100">
+      </div>
+
+      <div>
+        <label for="restore-name" class="block text-sm font-medium text-gray-700 mb-1">
+          New farm name <span class="text-gray-400 font-normal">(optional)</span>
+        </label>
+        <input id="restore-name" type="text" name="farm_name"
+               placeholder="Defaults to the name in the archive"
+               class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-farm-500 focus:ring-farm-500">
+      </div>
+
+      <label class="flex items-start gap-2 text-sm text-gray-700">
+        <input type="checkbox" name="confirm" value="1" class="mt-0.5 rounded border-gray-300 text-farm-600 focus:ring-farm-500">
+        <span>I understand this creates a new farm and switches me to it.</span>
+      </label>
+
+      <label class="flex items-start gap-2 text-sm text-gray-500">
+        <input type="checkbox" name="allow_dropped_fields" value="1" class="mt-0.5 rounded border-gray-300 text-farm-600 focus:ring-farm-500">
+        <span>Discard unknown fields — only needed for an archive from a newer FarmSteader.</span>
+      </label>
+
+      <button type="submit"
+              class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-6 rounded-lg transition">
+        Restore Backup
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

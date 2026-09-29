@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Employees — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Employees</h1>
+  <div class="flex gap-2">
+    <a href="{% url 'employment:task_board' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Tasks</a>
+    <a href="{% url 'employment:timesheet' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Timesheet</a>
+    <a href="{% url 'employment:employee_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">+ Add Employee</a>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for emp in employees %}
+  <a href="{% url 'employment:employee_detail' emp.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block">
+    <div class="flex items-center justify-between mb-1">
+      <h2 class="font-semibold text-gray-900">{{ emp }}</h2>
+      <span class="text-xs font-medium px-2 py-1 rounded-full
+        {% if emp.status == 'active' %}bg-green-100 text-green-700
+        {% elif emp.status == 'on_leave' %}bg-yellow-100 text-yellow-700
+        {% else %}bg-gray-100 text-gray-500{% endif %}">
+        {{ emp.get_status_display }}
+      </span>
+    </div>
+    <p class="text-sm text-gray-600">{{ emp.role|default:"No role" }}</p>
+    {% if emp.hourly_rate %}<p class="text-xs text-gray-400 mt-1">${{ emp.hourly_rate }}/hr</p>{% endif %}
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="text-lg">No employees yet.</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

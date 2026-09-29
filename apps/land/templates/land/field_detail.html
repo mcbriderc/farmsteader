@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ field.name }} — FarmSteader{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'vendor/css/leaflet.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{% url 'land:field_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Fields</a>
+      <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ field.name }}</h1>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'land:field_edit' field.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+      <a href="{% url 'land:field_delete' field.pk %}" class="bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium py-2 px-4 rounded-lg text-sm transition">Delete</a>
+    </div>
+  </div>
+</div>
+
+{# Summary cards #}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Acreage</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ field.acreage }} ac</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Soil Type</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ field.soil_type|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Crop Records</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ crop_records|length }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Coordinates</div>
+    <div class="text-sm font-medium text-gray-900 mt-1">{{ field.centroid_lat|floatformat:4 }}, {{ field.centroid_lon|floatformat:4 }}</div>
+  </div>
+</div>
+
+{# Map #}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+  <div id="map" class="w-full rounded-lg" style="height: 300px;"></div>
+</div>
+
+{# Tabs #}
+<div x-data="{ tab: 'weather' }" class="mb-6">
+  <div class="border-b border-gray-200 mb-4">
+    <nav class="flex gap-4 -mb-px">
+      <button @click="tab = 'weather'" :class="tab === 'weather' ? 'border-farm-500 text-farm-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+              class="py-3 px-1 border-b-2 text-sm font-medium transition">
+        Weather ({{ weather_count }})
+      </button>
+      <button @click="tab = 'soil'" :class="tab === 'soil' ? 'border-farm-500 text-farm-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+              class="py-3 px-1 border-b-2 text-sm font-medium transition">
+        Soil ({{ soil_samples|length }})
+      </button>
+      <button @click="tab = 'crops'" :class="tab === 'crops' ? 'border-farm-500 text-farm-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+              class="py-3 px-1 border-b-2 text-sm font-medium transition">
+        Crops ({{ crop_records|length }})
+      </button>
+    </nav>
+  </div>
+
+  {# Weather tab #}
+  <div x-show="tab === 'weather'">
+    <div class="flex justify-end mb-3">
+      <form method="post" action="{% url 'land:field_sync_weather' field.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-1.5 px-4 rounded-lg text-sm transition">
+          &#8635; Sync Now
+        </button>
+      </form>
+    </div>
+    {% if weather_forecast or weather_history %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+          <tr>
+            <th class="px-4 py-2 text-left">Date</th>
+            <th class="px-4 py-2 text-right">High</th>
+            <th class="px-4 py-2 text-right">Low</th>
+            <th class="px-4 py-2 text-right">Precip (in)</th>
+            <th class="px-4 py-2 text-right">Wind (mph)</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for w in weather_forecast %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2 font-medium text-gray-900">{{ w.date }}</td>
+            <td class="px-4 py-2 text-right text-red-600">{{ w.temp_max_f|default:"—" }}°F</td>
+            <td class="px-4 py-2 text-right text-blue-600">{{ w.temp_min_f|default:"—" }}°F</td>
+            <td class="px-4 py-2 text-right">{{ w.precipitation_in|default:"—" }}</td>
+            <td class="px-4 py-2 text-right">{{ w.wind_speed_max_mph|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+          {% if weather_forecast %}
+          <tr>
+            <td colspan="5" class="px-4 py-1">
+              <div class="flex items-center gap-2 text-xs text-gray-400">
+                <div class="flex-1 border-t border-dashed border-gray-200"></div>
+                <span>Forecast above &middot; History below</span>
+                <div class="flex-1 border-t border-dashed border-gray-200"></div>
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          {% for w in weather_history %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2 font-medium text-gray-900">{{ w.date }}</td>
+            <td class="px-4 py-2 text-right text-red-600">{{ w.temp_max_f|default:"—" }}°F</td>
+            <td class="px-4 py-2 text-right text-blue-600">{{ w.temp_min_f|default:"—" }}°F</td>
+            <td class="px-4 py-2 text-right">{{ w.precipitation_in|default:"—" }}</td>
+            <td class="px-4 py-2 text-right">{{ w.wind_speed_max_mph|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm py-4">No weather data yet. Data syncs automatically every 6 hours.</p>
+    {% endif %}
+  </div>
+
+  {# Soil tab #}
+  <div x-show="tab === 'soil'" style="display:none;">
+    <div class="flex justify-end gap-2 mb-3">
+      <form method="post" action="{% url 'land:field_sync_soil' field.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-1.5 px-4 rounded-lg text-sm transition">
+          &#8635; Sync Soil Now
+        </button>
+      </form>
+      <a href="{% url 'land:soil_sample_create' field.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">
+        + Add Soil Sample
+      </a>
+    </div>
+    {% if soil_samples %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {% for sample in soil_samples %}
+      <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-xs font-medium px-2 py-1 rounded-full bg-gray-100 text-gray-600">{{ sample.get_source_display }}</span>
+          <span class="text-xs text-gray-400">{{ sample.sample_date|default:"No date" }}</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-sm mt-3">
+          <div><span class="text-gray-500">pH</span><p class="font-medium">{{ sample.ph|default:"—" }}</p></div>
+          <div><span class="text-gray-500">OC %</span><p class="font-medium">{{ sample.organic_carbon_pct|default:"—" }}</p></div>
+          <div><span class="text-gray-500">N (ppm)</span><p class="font-medium">{{ sample.nitrogen_ppm|default:"—" }}</p></div>
+          <div><span class="text-gray-500">Sand %</span><p class="font-medium">{{ sample.sand_pct|default:"—" }}</p></div>
+          <div><span class="text-gray-500">Silt %</span><p class="font-medium">{{ sample.silt_pct|default:"—" }}</p></div>
+          <div><span class="text-gray-500">Clay %</span><p class="font-medium">{{ sample.clay_pct|default:"—" }}</p></div>
+        </div>
+        {% if sample.texture_class %}
+        <p class="text-xs text-gray-500 mt-2">Texture: {{ sample.texture_class }}</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm py-4">No soil samples. API data will appear after the next sync.</p>
+    {% endif %}
+  </div>
+
+  {# Crops tab #}
+  <div x-show="tab === 'crops'" style="display:none;">
+    <div class="flex justify-end mb-3">
+      <a href="{% url 'land:crop_record_create' field.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">
+        + Add Crop Record
+      </a>
+    </div>
+    {% if crop_records %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+          <tr>
+            <th class="px-4 py-2 text-left">Crop</th>
+            <th class="px-4 py-2 text-left">Season</th>
+            <th class="px-4 py-2 text-left">Status</th>
+            <th class="px-4 py-2 text-right">Yield</th>
+            <th class="px-4 py-2 text-right">Cost</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for cr in crop_records %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2 font-medium text-gray-900">{{ cr.crop_name }}{% if cr.variety %} <span class="text-gray-400">({{ cr.variety }})</span>{% endif %}</td>
+            <td class="px-4 py-2">{{ cr.season }}</td>
+            <td class="px-4 py-2">
+              <span class="text-xs font-medium px-2 py-1 rounded-full
+                {% if cr.status == 'harvested' %}bg-green-100 text-green-700
+                {% elif cr.status == 'failed' %}bg-red-100 text-red-700
+                {% elif cr.status == 'growing' %}bg-blue-100 text-blue-700
+                {% else %}bg-gray-100 text-gray-600{% endif %}">
+                {{ cr.get_status_display }}
+              </span>
+            </td>
+            <td class="px-4 py-2 text-right">{% if cr.yield_amount %}{{ cr.yield_amount }} {{ cr.yield_unit }}{% else %}—{% endif %}</td>
+            <td class="px-4 py-2 text-right">${{ cr.cost }}</td>
+            <td class="px-4 py-2 text-right">
+              <a href="{% url 'land:crop_record_edit' field.pk cr.pk %}" class="text-farm-600 hover:text-farm-700 text-xs">Edit</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm py-4">No crop records yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if field.notes %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5">
+  <h2 class="font-semibold text-gray-900 mb-2">Notes</h2>
+  <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ field.notes }}</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/js/leaflet.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const geojson = {{ field.boundary.json|safe }};
+  const layer = L.geoJSON(geojson, {
+    style: { color: '{{ field.color }}', weight: 2, fillOpacity: 0.3 },
+  });
+
+  const map = L.map('map').fitBounds(layer.getBounds().pad(0.3));
+
+  const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri', maxZoom: 19,
+  });
+  street.addTo(map);
+  L.control.layers({'Street': street, 'Satellite': satellite}).addTo(map);
+
+  layer.addTo(map);
+});
+</script>
+{% endblock %}

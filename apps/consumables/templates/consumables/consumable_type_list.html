@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Consumable Types — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <a href="{% url 'consumables:inventory_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; Inventory</a>
+    <h1 class="text-2xl font-bold text-gray-900 mt-1">Consumable Types</h1>
+  </div>
+  <a href="{% url 'consumables:consumable_type_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+    + Add Type
+  </a>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for ct in types %}
+  <a href="{% url 'consumables:consumable_type_detail' ct.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block">
+    <h2 class="font-semibold text-gray-900">{{ ct.name }}</h2>
+    <div class="text-sm text-gray-500 mt-1">
+      {{ ct.category|default:"Uncategorized" }} &middot; {{ ct.default_unit }}
+    </div>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="mb-3">No consumable types configured yet.</p>
+    <a href="{% url 'consumables:consumable_type_create' %}" class="inline-block bg-accent hover:bg-accent-hover text-white font-medium py-2 px-6 rounded-lg transition">Add Your First Type</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+[project]
+name = "farmsteader"
+# No `version` here on purpose: the single source of truth is
+# config/__version__.py. There is no [build-system] table, so nothing ever
+# reads this file's metadata, and a second version string would only drift.
+description = "Comprehensive farm management web application"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+python_files = ["tests.py", "test_*.py"]
+addopts = "--cov=apps --cov-report=xml --cov-report=term-missing"
+filterwarnings = ["ignore::DeprecationWarning:factory"]

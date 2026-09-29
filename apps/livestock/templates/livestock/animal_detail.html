@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}{{ animal }} — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{% url 'livestock:animal_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Livestock</a>
+      <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ animal.ear_tag }}{% if animal.name %} — {{ animal.name }}{% endif %}</h1>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'livestock:animal_edit' animal.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+      <a href="{% url 'livestock:animal_delete' animal.pk %}" class="bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium py-2 px-4 rounded-lg text-sm transition">Delete</a>
+    </div>
+  </div>
+</div>
+
+{# Info cards #}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Species / Breed</div>
+    <div class="font-bold text-gray-900 mt-1">{{ animal.get_species_display }}</div>
+    <div class="text-sm text-gray-600">{{ animal.breed|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Gender / Repro</div>
+    <div class="font-bold text-gray-900 mt-1">{{ animal.get_gender_display }}</div>
+    <div class="text-sm text-gray-600">{{ animal.get_repro_status_display }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Status</div>
+    <div class="font-bold text-gray-900 mt-1">{{ animal.get_status_display }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Current Field</div>
+    <div class="font-bold text-gray-900 mt-1">{{ animal.current_field.name|default:"—" }}</div>
+    {% if animal.days_in_current_field is not None %}
+    <div class="text-sm text-gray-600">{{ animal.days_in_current_field }} day{{ animal.days_in_current_field|pluralize }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Date of Birth</div>
+    <div class="font-medium text-gray-900 mt-1">{{ animal.date_of_birth|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Date Acquired</div>
+    <div class="font-medium text-gray-900 mt-1">{{ animal.date_acquired|default:"—" }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Weight</div>
+    <div class="font-medium text-gray-900 mt-1">{% if animal.weight_kg %}{{ animal.weight_kg }} kg{% else %}—{% endif %}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Purchase Price</div>
+    <div class="font-medium text-gray-900 mt-1">{% if animal.purchase_price %}${{ animal.purchase_price }}{% else %}—{% endif %}</div>
+  </div>
+</div>
+
+{# Lineage #}
+{% if animal.sire or animal.dam or offspring %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+  <h2 class="font-semibold text-gray-900 mb-3">Lineage</h2>
+  <div class="grid grid-cols-2 gap-4 text-sm">
+    <div>
+      <span class="text-gray-500">Sire</span>
+      {% if animal.sire %}
+      <a href="{% url 'livestock:animal_detail' animal.sire.pk %}" class="block text-farm-600 hover:text-farm-700 font-medium">{{ animal.sire }}</a>
+      {% else %}<p class="text-gray-400">Unknown</p>{% endif %}
+    </div>
+    <div>
+      <span class="text-gray-500">Dam</span>
+      {% if animal.dam %}
+      <a href="{% url 'livestock:animal_detail' animal.dam.pk %}" class="block text-farm-600 hover:text-farm-700 font-medium">{{ animal.dam }}</a>
+      {% else %}<p class="text-gray-400">Unknown</p>{% endif %}
+    </div>
+  </div>
+  {% if offspring %}
+  <div class="mt-3">
+    <span class="text-gray-500 text-sm">Offspring ({{ offspring|length }})</span>
+    <div class="flex flex-wrap gap-2 mt-1">
+      {% for child in offspring %}
+      <a href="{% url 'livestock:animal_detail' child.pk %}" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{{ child.ear_tag }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{# Tabs #}
+<div x-data="{ tab: 'vet' }">
+  <div class="border-b border-gray-200 mb-4">
+    <nav class="flex gap-4 -mb-px">
+      <button @click="tab = 'vet'" :class="tab === 'vet' ? 'border-farm-500 text-farm-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+              class="py-3 px-1 border-b-2 text-sm font-medium transition">
+        Vet Records ({{ vet_records|length }})
+      </button>
+      <button @click="tab = 'movements'" :class="tab === 'movements' ? 'border-farm-500 text-farm-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+              class="py-3 px-1 border-b-2 text-sm font-medium transition">
+        Movements ({{ movements|length }})
+      </button>
+      <button @click="tab = 'feed'" :class="tab === 'feed' ? 'border-farm-500 text-farm-700' : 'border-transparent text-gray-500 hover:text-gray-700'"
+              class="py-3 px-1 border-b-2 text-sm font-medium transition">
+        Feed Log ({{ feed_logs|length }})
+      </button>
+    </nav>
+  </div>
+
+  {# Vet records tab #}
+  <div x-show="tab === 'vet'">
+    <div class="flex justify-end mb-3">
+      <a href="{% url 'livestock:vet_record_create' animal.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">
+        + Add Vet Record
+      </a>
+    </div>
+    {% if vet_records %}
+    <div class="space-y-3">
+      {% for vr in vet_records %}
+      <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-700">{{ vr.get_record_type_display }}</span>
+            <span class="text-sm font-medium text-gray-900">{{ vr.date }}</span>
+          </div>
+          <a href="{% url 'livestock:vet_record_edit' animal.pk vr.pk %}" class="text-xs text-farm-600 hover:text-farm-700">Edit</a>
+        </div>
+        <p class="text-sm text-gray-700">{{ vr.description }}</p>
+        <div class="flex gap-4 mt-2 text-xs text-gray-500">
+          {% if vr.veterinarian %}<span>Vet: {{ vr.veterinarian }}</span>{% endif %}
+          {% if vr.cost %}<span>Cost: ${{ vr.cost }}</span>{% endif %}
+          {% if vr.next_due_date %}<span>Next due: {{ vr.next_due_date }}</span>{% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm py-4">No vet records yet.</p>
+    {% endif %}
+  </div>
+
+  {# Movements tab #}
+  <div x-show="tab === 'movements'" style="display:none;">
+    <div class="flex justify-end mb-3">
+      <a href="{% url 'livestock:movement_create' animal.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">
+        + Move Animal
+      </a>
+    </div>
+    {% if movements %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+          <tr>
+            <th class="px-4 py-2 text-left">Date</th>
+            <th class="px-4 py-2 text-left">From</th>
+            <th class="px-4 py-2 text-left">To</th>
+            <th class="px-4 py-2 text-left">Reason</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for m in movements %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2 font-medium text-gray-900">{{ m.date }}</td>
+            <td class="px-4 py-2">{{ m.from_field.name|default:"—" }}</td>
+            <td class="px-4 py-2">{{ m.to_field.name|default:"—" }}</td>
+            <td class="px-4 py-2 text-gray-600">{{ m.reason|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm py-4">No movement history.</p>
+    {% endif %}
+  </div>
+
+  {# Feed log tab #}
+  <div x-show="tab === 'feed'" style="display:none;">
+    <div class="flex justify-end mb-3">
+      <a href="{% url 'livestock:feeding_log_create' animal.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">
+        + Log Feeding
+      </a>
+    </div>
+    {% if feed_logs %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+          <tr>
+            <th class="px-4 py-2 text-left">Date</th>
+            <th class="px-4 py-2 text-left">Feed</th>
+            <th class="px-4 py-2 text-left">Quantity</th>
+            <th class="px-4 py-2 text-left">Notes</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for log in feed_logs %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2 font-medium text-gray-900">{{ log.date }}</td>
+            <td class="px-4 py-2">
+              <a href="{% url 'livestock:feed_detail' log.feed_stock.pk %}" class="text-farm-600 hover:text-farm-700">{{ log.feed_stock.name }}</a>
+            </td>
+            <td class="px-4 py-2">{{ log.quantity }} {{ log.unit }}</td>
+            <td class="px-4 py-2 text-gray-600">{{ log.notes|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500 text-sm py-4">No feeding records yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if animal.notes %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 mt-6">
+  <h2 class="font-semibold text-gray-900 mb-2">Notes</h2>
+  <p class="text-sm text-gray-700 whitespace-pre-wrap">{{ animal.notes }}</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,7 @@
+# Edit this file, never prod.txt -- see base.in. The -c line holds every shared
+# package at exactly the version base.txt pinned, so dev and prod cannot drift.
+-r base.in
+-c base.txt
+
+gunicorn>=23.0,<27
+sentry-sdk[django]>=2.0,<3

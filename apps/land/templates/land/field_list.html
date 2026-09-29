@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Fields — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Fields</h1>
+    <p class="text-gray-500 text-sm mt-1">{{ fields|length }} field{{ fields|length|pluralize }}</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'land:field_map' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Map View
+    </a>
+    {% if fields %}
+    <form method="post" action="{% url 'land:sync_all_fields' %}">
+      {% csrf_token %}
+      <button type="submit" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+        &#8635; Sync All Fields
+      </button>
+    </form>
+    {% endif %}
+    <a href="{% url 'land:field_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+      + Add Field
+    </a>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for field in fields %}
+  <a href="{% url 'land:field_detail' field.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-4 h-4 rounded-full" style="background-color: {{ field.color }}"></div>
+      <h2 class="font-semibold text-gray-900">{{ field.name }}</h2>
+    </div>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <div>
+        <span class="text-gray-500">Acreage</span>
+        <p class="font-medium text-gray-900">{{ field.acreage }} ac</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Soil Type</span>
+        <p class="font-medium text-gray-900">{{ field.soil_type|default:"—" }}</p>
+      </div>
+    </div>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="text-lg">No fields yet.</p>
+    <a href="{% url 'land:field_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Draw your first field on the map</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

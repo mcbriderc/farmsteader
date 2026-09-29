@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Delete {{ field.name }} — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-12">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-6">
+    <h1 class="text-xl font-bold text-gray-900 mb-2">Delete Field</h1>
+    <p class="text-gray-600 mb-4">Are you sure you want to delete <strong>{{ field.name }}</strong> ({{ field.acreage }} acres)?
+      This will also delete all weather data, soil samples, and crop records for this field.</p>
+
+    <form method="post" class="flex gap-3">
+      {% csrf_token %}
+      <button type="submit" class="bg-danger hover:bg-danger-hover text-white font-medium py-2 px-4 rounded-lg transition">
+        Delete
+      </button>
+      <a href="{% url 'land:field_detail' field.pk %}"
+         class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg transition">
+        Cancel
+      </a>
+    </form>
+  </div>
+</div>
+{% endblock %}

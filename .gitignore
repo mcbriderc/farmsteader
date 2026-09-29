@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Django
+*.sqlite3
+media/
+staticfiles/
+*.log
+
+# Environment
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Tailwind
+static/css/dist/
+.tailwindcss/
+.django_tailwind_cli/
+
+# SonarQube
+.sonar/
+.scannerwork/
+
+# Test coverage
+.coverage
+coverage.xml
+
+# OS
+.DS_Store
+Thumbs.db

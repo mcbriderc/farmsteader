@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Feed Inventory — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <a href="{% url 'livestock:animal_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; Livestock</a>
+    <h1 class="text-2xl font-bold text-gray-900 mt-1">Feed Inventory</h1>
+    <p class="text-gray-500 text-sm mt-1">{{ stocks|length }} item{{ stocks|length|pluralize }}</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'livestock:feed_type_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Feed Types
+    </a>
+    <a href="{% url 'livestock:feed_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+      + Add Feed Stock
+    </a>
+  </div>
+</div>
+
+{% if low_stock %}
+<div class="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-4">
+  <h2 class="text-sm font-semibold text-yellow-800 mb-1">Low Stock Alert</h2>
+  <p class="text-sm text-yellow-700">{{ low_stock|length }} item{{ low_stock|length|pluralize }} below reorder threshold:
+    {% for s in low_stock %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% endfor %}
+  </p>
+</div>
+{% endif %}
+
+{# Filter #}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4 mb-4">
+  <form method="get" class="flex flex-wrap gap-3 items-end">
+    <div>
+      <label for="filter-source" class="block text-xs font-medium text-gray-500 mb-1">Restock Source</label>
+      <select id="filter-source" name="source" class="rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border">
+        <option value="">All</option>
+        {% for val, label in source_choices %}
+        <option value="{{ val }}" {% if current_source == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 px-4 rounded-lg text-sm transition">Filter</button>
+    {% if current_source %}
+    <a href="{% url 'livestock:feed_list' %}" class="text-sm text-gray-500 hover:text-gray-700 py-2">Clear</a>
+    {% endif %}
+  </form>
+</div>
+
+{# Feed stock cards #}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for stock in stocks %}
+  <a href="{% url 'livestock:feed_detail' stock.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block {% if stock.is_low_stock %}border-yellow-300{% endif %}">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="font-semibold text-gray-900">{{ stock.name }}</h2>
+      {% if stock.is_low_stock %}
+      <span class="text-xs font-medium px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">Low Stock</span>
+      {% endif %}
+    </div>
+    <div class="grid grid-cols-2 gap-1 text-xs text-gray-500">
+      <span>{{ stock.feed_type.get_category_display }}</span>
+      <span>{{ stock.quantity }} {{ stock.unit }}</span>
+      <span>{{ stock.get_restock_source_display }}</span>
+      <span>{{ stock.storage_location|default:"—" }}</span>
+    </div>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="text-lg">No feed stock yet.</p>
+    <a href="{% url 'livestock:feed_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Add your first feed stock</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

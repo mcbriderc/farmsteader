@@ -1,0 +1,38 @@
+# Release tarball contents.
+#
+# `git archive` honours export-ignore, and scripts/build-tarball.sh builds the
+# release from `git archive`. Keeping the exclusion list here rather than in the
+# build script means it is declarative, lives with the source, and -- because
+# the archive is generated from tracked content -- makes it structurally
+# impossible for .git/, .venv/, __pycache__/ or any untracked scratch file to
+# end up in a published artifact.
+#
+# What ships: the application, deploy/, requirements/, DOCS.md and .env.example
+# (the installers reference both).
+
+# Development-only tooling.
+/tests               export-ignore
+/.forgejo            export-ignore
+/.idea               export-ignore
+/scripts             export-ignore
+/podman-compose.yml  export-ignore
+/sonar-project.properties export-ignore
+
+# scripts/ is excluded because the tarball ships a pre-built stylesheet, so
+# nothing in it needs to compile CSS; build-tarball.sh and release.sh need real
+# git history and are meaningless outside a checkout; and scripts/ci/test.sh
+# drives a test suite that is itself excluded. The container image builds from
+# the repo, not the tarball, so it still gets scripts/build-css.sh.
+
+# Contributor-facing, not user-facing. LICENSE and THIRD-PARTY-NOTICES.md are
+# deliberately NOT here: AGPL section 4 requires the licence to be conveyed with
+# the program, and the vendored MIT/BSD libraries require their notices to
+# accompany every redistribution. build-tarball.sh asserts both are present.
+/CONTRIBUTING.md     export-ignore
+/CLA.md              export-ignore
+
+# Notes to ourselves, not to users.
+/CLAUDE.md           export-ignore
+/todo-list.txt       export-ignore
+/RELEASE-PLAN.md     export-ignore
+/.gitattributes      export-ignore

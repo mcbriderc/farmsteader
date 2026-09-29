@@ -1,0 +1,44 @@
+# Direct dependencies, as ranges. Edit this file, never base.txt: run
+# scripts/lock-deps.sh to recompile the exact pins that CI and deploys install.
+#
+# Every entry carries a ceiling at the next major (next minor for 0.x, where a
+# minor is allowed to break). The lock is what makes installs reproducible; the
+# ceiling is what stops `lock-deps.sh --upgrade` from walking across a breaking
+# release without someone deciding to.
+
+# Django
+Django>=5.2,<7
+
+# Database
+psycopg[binary]>=3.2,<4
+
+# Celery
+celery>=5.5,<6
+redis>=5.0,<9
+
+# HTTP client
+httpx>=0.28,<1
+
+# CME futures prices (apps/crops/tasks.py). Pulls pandas + numpy, which is the
+# single largest chunk of the venv -- but the task imports it unconditionally,
+# so leaving it out means sync_commodity_prices dies on every run.
+yfinance>=0.2.50,<2
+
+# Static file serving for the container image, where there is no nginx in front.
+# In base rather than prod so dev matches prod and so `manage.py check --deploy`
+# can load prod settings in CI, which installs only requirements/dev.txt.
+whitenoise[brotli]>=6.8,<7
+
+# Import/Export
+django-import-export>=4.3,<5
+openpyxl>=3.1,<4
+
+# Images
+Pillow>=11,<13
+
+# Environment
+django-environ>=0.12,<0.15
+
+# Tailwind (standalone binary, no Node). The floor is load-bearing: 4.8 added
+# the W001 staticfiles check that `check --deploy --fail-level WARNING` relies on.
+django-tailwind-cli>=4.8,<5

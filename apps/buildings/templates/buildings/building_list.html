@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Buildings — FarmSteader{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'vendor/css/leaflet.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-gray-900">Buildings</h1>
+  <a href="{% url 'buildings:building_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">+ Add Building</a>
+</div>
+
+<div id="map" class="w-full rounded-xl border border-gray-200 shadow-sm mb-6" style="height: 300px;"></div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for b in buildings %}
+  <a href="{% url 'buildings:building_detail' b.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block">
+    <h2 class="font-semibold text-gray-900">{{ b.name }}</h2>
+    <span class="text-xs text-gray-500">{{ b.get_building_type_display }}</span>
+    <div class="grid grid-cols-2 gap-2 text-sm mt-3">
+      <div><span class="text-gray-500">Year</span><p class="font-medium">{{ b.year_built|default:"—" }}</p></div>
+      <div><span class="text-gray-500">Sq ft</span><p class="font-medium">{{ b.square_feet|default:"—" }}</p></div>
+    </div>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="text-lg">No buildings yet.</p>
+    <a href="{% url 'buildings:building_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Add your first building</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/js/leaflet.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  L.Icon.Default.prototype.options.imagePath = '{% static "vendor/images/" %}';
+  const map = L.map('map').setView([39.8283, -98.5795], 5);
+  const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors', maxZoom: 19,
+  });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri', maxZoom: 19,
+  });
+  street.addTo(map);
+  L.control.layers({'Street': street, 'Satellite': satellite}).addTo(map);
+
+  fetch('{% url "buildings:building_geojson" %}')
+    .then(r => r.json())
+    .then(data => {
+      if (!data.features.length) return;
+      const layer = L.geoJSON(data, {
+        onEachFeature: function(f, layer) {
+          layer.bindPopup('<strong>' + f.properties.name + '</strong><br>' + f.properties.type +
+            '<br><a href="' + f.properties.url + '">Details &rarr;</a>');
+        },
+      }).addTo(map);
+      map.fitBounds(layer.getBounds().pad(0.2));
+    });
+});
+</script>
+{% endblock %}

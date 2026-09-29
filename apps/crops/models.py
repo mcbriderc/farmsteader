@@ -1,0 +1,75 @@
+from django.db import models
+
+from apps.core.models import CostMixin, FarmOwnedModel, NotesMixin
+
+
+class CropType(models.Model):
+    """Global crop catalog — not farm-scoped."""
+    name = models.CharField(max_length=100, unique=True)
+    usda_code = models.CharField(max_length=20, blank=True, help_text="USDA NASS commodity code")
+    category = models.CharField(max_length=50, blank=True, help_text="e.g. Grain, Oilseed, Vegetable")
+    default_unit = models.CharField(max_length=20, default="bushels")
+
+    class Meta:
+        db_table = "crop_type"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class MarketPrice(models.Model):
+    """Cached crop prices from USDA NASS."""
+    crop_type = models.ForeignKey(CropType, on_delete=models.CASCADE, related_name="prices")
+    year = models.IntegerField()
+    state = models.CharField(max_length=50, blank=True, help_text="US state or 'US' for national")
+    price_per_unit = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20, default="$/bushel")
+    source = models.CharField(max_length=50, default="USDA NASS")
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "market_price"
+        unique_together = [("crop_type", "year", "state")]
+        ordering = ["-year"]
+
+    def __str__(self):
+        return f"{self.crop_type.name} {self.year} ({self.state}): ${self.price_per_unit}/{self.unit}"
+
+
+class CommodityPrice(models.Model):
+    """CME futures prices synced daily via yfinance. Global — not farm-scoped."""
+    ticker = models.CharField(max_length=20)
+    commodity = models.CharField(max_length=50)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    unit = models.CharField(max_length=20)
+    change = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    change_pct = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    date = models.DateField()
+    fetched_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "commodity_price"
+        unique_together = [("ticker", "date")]
+        ordering = ["commodity"]
+
+    def __str__(self):
+        return f"{self.commodity} ${self.price} {self.unit} ({self.date})"
+
+
+class HarvestRecord(FarmOwnedModel, NotesMixin, CostMixin):
+    field = models.ForeignKey("land.Field", on_delete=models.CASCADE, related_name="harvests")
+    crop_type = models.ForeignKey(CropType, on_delete=models.CASCADE, related_name="harvests")
+    harvest_date = models.DateField()
+    yield_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    yield_unit = models.CharField(max_length=20, default="bushels")
+    moisture_pct = models.FloatField(null=True, blank=True, verbose_name="Moisture %")
+    quality_grade = models.CharField(max_length=50, blank=True)
+    revenue = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+
+    class Meta:
+        db_table = "harvest_record"
+        ordering = ["-harvest_date"]
+
+    def __str__(self):
+        return f"{self.crop_type.name} — {self.field.name} ({self.harvest_date})"

@@ -1,0 +1,162 @@
+{% load static assets %}
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-canvas">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="origin">
+  <title>{% block title %}FarmSteader{% endblock %}</title>
+  {% comment %}
+    Theme bootstrap. Must be blocking and must stay ABOVE the stylesheet link:
+    Alpine and HTMX load deferred at the end of <body>, so anything driven by
+    them would flash light on every page load. Guarded by test_theming.py.
+  {% endcomment %}
+  <script>
+    (function () {
+      var t = localStorage.getItem('theme');
+      if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+      }
+    })();
+    function toggleTheme() {
+      var dark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', dark ? 'dark' : 'light');
+    }
+  </script>
+  <link rel="stylesheet" href="{% static_versioned 'css/dist/styles.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body class="h-full" x-data="{ sidebarOpen: false }">
+
+{% if user.is_authenticated and current_farm %}
+{# --- Mobile header --- #}
+<div class="lg:hidden flex items-center justify-between bg-farm-800 text-white px-4 py-3">
+  <button @click="sidebarOpen = !sidebarOpen" class="focus:outline-none">
+    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+    </svg>
+  </button>
+  <span class="font-semibold text-lg">FarmSteader</span>
+  <span class="text-sm truncate max-w-32">{{ current_farm.name }}</span>
+</div>
+
+{# --- Sidebar overlay (mobile) --- #}
+<div x-show="sidebarOpen" x-transition:enter="transition-opacity duration-200" x-transition:leave="transition-opacity duration-200"
+     @click="sidebarOpen = false" class="fixed inset-0 bg-black/50 z-30 lg:hidden" style="display:none;"></div>
+
+{# --- Sidebar --- #}
+<aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+       class="fixed inset-y-0 left-0 z-40 w-64 bg-farm-800 text-white transform transition-transform duration-200 lg:translate-x-0 flex flex-col">
+  <div class="px-6 py-5 border-b border-white/10 hidden lg:block">
+    <h1 class="text-xl font-bold">FarmSteader</h1>
+    <p class="text-farm-300 text-sm mt-1 truncate">{{ current_farm.name }}</p>
+  </div>
+  <nav class="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+    <a href="{% url 'core:dashboard' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
+      Dashboard
+    </a>
+    <a href="{% url 'land:field_list' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+      Land &amp; Fields
+    </a>
+    <a href="{% url 'livestock:animal_list' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7h18M3 12h18M3 17h18"/></svg>
+      Livestock
+    </a>
+    <a href="{% url 'crops:harvest_list' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+      Crops
+    </a>
+    <a href="{% url 'equipment:equipment_list' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      Equipment
+    </a>
+    <a href="{% url 'buildings:building_list' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      Buildings
+    </a>
+    <a href="{% url 'consumables:inventory_list' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+      Consumables
+    </a>
+    <a href="{% url 'employment:employee_list' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      Employment
+    </a>
+    <a href="{% url 'produce:produce_list' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z"/></svg>
+      Produce
+    </a>
+    <hr class="border-white/10 my-2">
+    <a href="{% url 'data_io:index' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm font-medium">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Import / Export
+    </a>
+  </nav>
+  <div class="px-4 py-4 border-t border-white/10">
+    <button type="button" onclick="toggleTheme()" class="w-full flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm">
+      <svg class="icon-sun w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      <svg class="icon-moon w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      <span class="icon-sun">Light Mode</span>
+      <span class="icon-moon">Dark Mode</span>
+    </button>
+    <a href="{% url 'accounts:farm_settings' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-accent-hover text-sm">
+      <svg class="w-5 h-5 mr-3 text-farm-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+      Settings
+    </a>
+    <a href="{% url 'accounts:farm_select' %}" class="block px-3 py-2 rounded-lg hover:bg-accent-hover text-sm">Switch Farm</a>
+    <a href="{% url 'accounts:logout' %}" class="block px-3 py-2 rounded-lg hover:bg-accent-hover text-sm">Logout</a>
+    {% comment %}
+      Version, and the AGPL section 13 source link. The link is omitted when
+      FARMSTEADER_SOURCE_URL is unset rather than pointed at a default, because
+      an operator running a modified copy must offer *their* source, and a
+      hardcoded upstream URL would not discharge that.
+    {% endcomment %}
+    <p class="px-3 pt-3 text-xs text-farm-300">
+      v{{ app_version }}{% if source_url %} &middot;
+      <a href="{{ source_url }}" target="_blank" rel="noopener noreferrer" class="underline hover:text-white">Source</a>{% endif %}
+    </p>
+  </div>
+</aside>
+{% else %}
+{% comment %}
+  No sidebar on the middleware-exempt pages (login, register, farm select),
+  so the toggle needs a home of its own.
+{% endcomment %}
+<button type="button" onclick="toggleTheme()" title="Toggle dark mode"
+        class="fixed top-4 right-4 z-40 p-2 rounded-lg bg-surface border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 shadow-sm">
+  <svg class="icon-sun w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+  <svg class="icon-moon w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+  <span class="sr-only">Toggle dark mode</span>
+</button>
+{% endif %}
+
+{# --- Main content --- #}
+<main class="{% if user.is_authenticated and current_farm %}lg:ml-64{% endif %} min-h-screen">
+  {# Toast messages #}
+  {% if messages %}
+  <div class="px-4 pt-4 space-y-2">
+    {% for message in messages %}
+    <div x-data="{ show: true }" x-show="show" x-init="setTimeout(() => show = false, 4000)"
+         class="rounded-lg px-4 py-3 text-sm font-medium
+                {% if message.tags == 'success' %}bg-green-100 text-green-800
+                {% elif message.tags == 'error' %}bg-red-100 text-red-800
+                {% elif message.tags == 'warning' %}bg-yellow-100 text-yellow-800
+                {% else %}bg-blue-100 text-blue-800{% endif %}">
+      {{ message }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="p-4 sm:p-6 lg:p-8">
+    {% block content %}{% endblock %}
+  </div>
+</main>
+
+<script src="{% static 'vendor/js/htmx.min.js' %}" defer></script>
+<script src="{% static 'vendor/js/alpine.min.js' %}" defer></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>
