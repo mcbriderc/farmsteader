@@ -56,7 +56,10 @@ esac
 # naming a file that is plainly right there -- one of the more baffling errors
 # to land in a build log.
 libc=""
-if [ "$os" = "linux" ] && ldd --version 2>&1 | grep -qi musl; then
+# grep without -q: under pipefail, -q can exit before ldd finishes writing, and
+# the SIGPIPE it hands ldd would fail the pipeline -- reporting "not musl" on
+# exactly the systems that are.
+if [ "$os" = "linux" ] && ldd --version 2>&1 | grep -i musl >/dev/null; then
     libc="-musl"
 fi
 

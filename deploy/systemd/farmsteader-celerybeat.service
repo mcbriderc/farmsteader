@@ -1,0 +1,30 @@
+[Unit]
+Description=FarmSteader scheduler (celery beat)
+Documentation=https://github.com/mcbriderc/farmsteader
+Wants=network-online.target
+After=network-online.target redis-server.service
+
+[Service]
+Type=simple
+User=farmsteader
+Group=farmsteader
+WorkingDirectory=/opt/farmsteader/current
+EnvironmentFile=/etc/farmsteader/env
+# The schedule file lives in /var/lib, not /run: /run is tmpfs, so beat used to
+# forget when each task last ran on every reboot and could re-fire daily jobs.
+ExecStart=/opt/farmsteader/current/.venv/bin/celery -A config beat \
+    --loglevel=info \
+    --schedule=/var/lib/farmsteader/celerybeat-schedule
+Restart=always
+RestartSec=10
+
+RuntimeDirectory=farmsteader-celerybeat
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/farmsteader /var/log/farmsteader
+
+[Install]
+WantedBy=multi-user.target

@@ -14,7 +14,7 @@ A comprehensive, self-hosted farm management web application built with Django, 
 - [External API Integrations](#external-api-integrations)
 - [Getting Started (Development)](#getting-started-development)
 - [Running the Application](#running-the-application)
-- [Deploying to an LXC Container (Incus)](#deploying-to-an-lxc-container-incus)
+- [Installing on a Server (Debian, Ubuntu, LXC or VM)](#installing-on-a-server-debian-ubuntu-lxc-or-vm)
 - [Project Structure](#project-structure)
 - [Configuration Reference](#configuration-reference)
 - [Import / Export](#import--export)
@@ -447,7 +447,7 @@ python manage.py createsuperuser
 
 The project uses the standalone Tailwind CSS CLI binary via `django-tailwind-cli` (no Node.js required). The binary version is pinned in `config/settings/base.py` and is downloaded automatically on first build.
 
-This step is **required**, not optional: `static/css/dist/styles.css` is git-ignored, so a fresh checkout has no stylesheet at all. CI and `deploy/incus/setup.sh` both run this build for the same reason.
+This step is **required**, not optional: `static/css/dist/styles.css` is git-ignored, so a fresh checkout has no stylesheet at all. CI and the release build both run it for the same reason; installed servers get the stylesheet prebuilt in the release tarball.
 
 Tailwind v4 is configured entirely in `assets/css/input.css` — the `@theme` block, the semantic colour tokens, and the `html.dark` overrides that implement dark mode all live there. There is no `tailwind.config.js`. The source file sits outside `static/` on
 purpose, so `collectstatic` does not publish it.
@@ -519,165 +519,170 @@ podman-compose down -v
 
 ---
 
-## Deploying to an LXC Container (Incus)
+## Installing on a Server (Debian, Ubuntu, LXC or VM)
 
-FarmSteader is designed to run in an Incus LXC container on your local network. This section walks through the full deployment process.
+FarmSteader installs onto a fresh **Debian 13** (or recent Ubuntu) machine with
+one command: a Proxmox or Incus container, a VM, or bare metal. The installer
+sets up PostgreSQL + PostGIS, Redis, nginx and the app, starts everything, and
+only reports success once the site actually answers with the right version.
 
-### Prerequisites on the Host
+**Size:** 2 CPU / 2 GB RAM / 10 GB disk minimum; 4 GB recommended. 1 GB is not
+enough.
 
-Install Incus on your Fedora host:
+### Install
 
-```bash
-sudo dnf install incus
-sudo incus admin init
-```
-
-Accept defaults during `incus admin init`, or configure storage/networking as needed. Ensure your user is in the `incus` group:
-
-```bash
-sudo usermod -aG incus $USER
-newgrp incus
-```
-
-### Step 1: Create the Container
+As root on the target machine:
 
 ```bash
-incus launch images:debian/13 farmsteader
+curl -fsSL https://raw.githubusercontent.com/mcbriderc/farmsteader/master/deploy/install.sh | bash
 ```
 
-Wait for the container to start:
+With options, download the script first:
 
 ```bash
-incus list
+curl -fsSLO https://raw.githubusercontent.com/mcbriderc/farmsteader/master/deploy/install.sh
+bash install.sh --admin-email you@example.com --allowed-hosts farm.lan,192.168.1.40
 ```
 
-You should see the `farmsteader` container running with an IP address.
+| option | default |
+|---|---|
+| `--version X.Y.Z` | the latest release |
+| `--admin-user NAME` / `--admin-email EMAIL` | `admin` / none |
+| `--admin-password PASS` | generated, saved to `/root/farmsteader.creds` |
+| `--allowed-hosts LIST` | `localhost`, this hostname, and its IPv4 addresses |
+| `--usda-key KEY`, `--sentry-dsn DSN` | unset |
+| `--no-nginx` | nginx installed; gunicorn listens on `/run/farmsteader/gunicorn.sock` |
+| `--no-backups` | nightly database dump installed |
+| `--dry-run` | download and verify, then print every change instead of making it |
 
-### Step 2: Push the Application Code
+It is non-interactive, so the same command works from a shell, Ansible or CI.
+The script is only a bootstrap: it downloads the release tarball, verifies it
+against the published `SHA256SUMS`, and then runs `deploy/lib/common.sh` **from
+that release**, so the install steps always match the code being installed.
 
-Copy the entire project into the container:
+When it finishes it prints the address and the admin login. Open it, sign in,
+and create your farm.
+
+### What it sets up
+
+```
+/opt/farmsteader/releases/<version>/   one directory per release, root-owned (the app
+                                       cannot modify its own code), each with its own
+                                       .venv and collected static files
+/opt/farmsteader/current  ->  releases/<version>    swapped atomically on upgrade
+/etc/farmsteader/env                   configuration (0640 root:farmsteader)
+/var/lib/farmsteader/media/            uploads -- outside the release, so upgrades never touch them
+/var/lib/farmsteader/celerybeat-schedule
+/var/backups/farmsteader/              nightly and pre-upgrade database dumps
+/root/farmsteader.creds                the generated admin login (0600)
+/var/log/farmsteader-install.log       full apt/pip output from install and upgrades
+```
+
+Three systemd services, each sandboxed (`ProtectSystem=strict`, `NoNewPrivileges`)
+and each with its own runtime directory:
+
+- `farmsteader-web` -- gunicorn on `/run/farmsteader/gunicorn.sock`, behind nginx
+- `farmsteader-celery` -- the background worker
+- `farmsteader-celerybeat` -- the scheduler
+
+Worker counts are sized from RAM at install time (2 GB: 2 web workers and 1
+celery worker) and written to `GUNICORN_WORKERS` / `CELERY_CONCURRENCY` in the
+env file. Gunicorn never sizes itself from the CPU count, which inside an LXC
+can be the *host's* and would start dozens of workers.
+
+Secrets are hex, generated per install. The database password is passed to
+`psql` on stdin, never on a command line.
+
+### Upgrading
 
 ```bash
-incus file push -r /path/to/farmsteader/ farmsteader/opt/
+/opt/farmsteader/current/deploy/update.sh                   # to the latest release
+/opt/farmsteader/current/deploy/update.sh --version 0.3.0   # to a specific one
 ```
 
-This places the code at `/opt/farmsteader/` inside the container.
+The installed `update.sh` downloads and verifies the new release, then hands
+over to **the new release's own** `update.sh`, so each release decides how it
+is activated. Activation:
 
-### Step 3: Run the Provisioning Script
+1. builds the new release's venv and static files while the old version keeps serving
+2. dumps the database to `/var/backups/farmsteader/pre-upgrade-<old>-to-<new>-<time>.dump`
+3. stops the services and runs migrations
+4. installs the new release's systemd units and nginx config, and swaps `current`
+5. starts everything and waits for `/healthz` to report the new version and `/readyz` to pass
 
-The automated setup script installs all system dependencies, creates the database, sets up Python, and configures systemd services:
+**If migrations fail, or the new version does not come up healthy, it rolls
+back automatically**: the previous release is re-linked, the pre-upgrade dump
+is restored, and the old version is started and health-checked. The two most
+recent releases are kept on disk.
+
+`/etc/farmsteader/env` and everything under `/var/lib/farmsteader` are never
+modified by an upgrade; a release that introduces a new setting appends it
+without touching your edits. Downgrades are refused (migrations only run
+forwards). Running the updater for the version already installed does nothing.
+
+### Managing
 
 ```bash
-incus exec farmsteader -- bash /opt/farmsteader/deploy/incus/setup.sh
+systemctl status farmsteader-web farmsteader-celery farmsteader-celerybeat
+journalctl -u farmsteader-web -f
+journalctl -u farmsteader-celery -f
+
+# after editing /etc/farmsteader/env
+systemctl restart farmsteader-web farmsteader-celery farmsteader-celerybeat
+
+# run a management command
+cd /opt/farmsteader/current
+DJANGO_SETTINGS_MODULE=config.settings.prod .venv/bin/python manage.py <command>
 ```
 
-The script performs the following:
+`DJANGO_SETTINGS_MODULE` must be passed explicitly for `manage.py`: it defaults
+to the development settings, and the env file cannot change that (it is read
+after the settings module has been chosen).
 
-1. **Installs system packages:** Python 3, PostgreSQL 16 + PostGIS, Redis, Nginx, GDAL/GEOS/PROJ, certbot
-2. **Creates a system user** (`farmsteader`) for running the application
-3. **Sets up PostgreSQL:** Creates the database and user with a randomly generated password, enables the PostGIS extension
-4. **Starts Redis**
-5. **Creates a Python virtual environment** at `/opt/farmsteader/.venv` and installs all dependencies
-6. **Generates a `.env` file** with a random `SECRET_KEY` and the database credentials
-7. **Runs Django migrations** and collects static files
-8. **Installs three systemd services:**
-   - `farmsteader-web` -- Gunicorn WSGI server on a Unix socket
-   - `farmsteader-celery` -- Celery worker for background tasks
-   - `farmsteader-celerybeat` -- Celery Beat scheduler for periodic tasks
-9. **Configures Nginx** as a reverse proxy with static file serving
-10. **Sets up a nightly backup cron** -- `pg_dump` compressed with gzip, 14-day retention
+**Backups:** a `pg_dump -Fc` runs nightly at 02:00 into `/var/backups/farmsteader/`
+and is kept for 14 days; pre-upgrade dumps are kept for 90. Restore one with
+`pg_restore`, or use the whole-farm backup/restore in the app. Uploaded files in
+`/var/lib/farmsteader/media` are not in the database dump -- back that
+directory up separately.
 
-At the end, the script prints the generated database password and secret key. **Save these.**
+### HTTPS
 
-### Step 4: Create a Superuser
+The default is plain HTTP on port 80, which is right for a LAN. To serve over
+HTTPS, either put a TLS proxy in front, or install certbot in the container
+(`apt install certbot python3-certbot-nginx && certbot --nginx -d farm.example.com`).
+Then add the hostname to `ALLOWED_HOSTS`, set `FARMSTEADER_HTTPS=1` in
+`/etc/farmsteader/env`, and restart the services. That one switch turns on the
+HTTPS redirect, secure cookies and HSTS.
+
+### Incus quick start
 
 ```bash
-incus exec farmsteader -- su - farmsteader -c \
-  'cd /opt/farmsteader && .venv/bin/python manage.py createsuperuser'
+incus launch images:debian/13 farmsteader -c limits.memory=2GiB -c limits.cpu=2
+incus exec farmsteader -- bash -c "$(curl -fsSL https://raw.githubusercontent.com/mcbriderc/farmsteader/master/deploy/install.sh)"
+incus list farmsteader -c n4        # the container's address
 ```
 
-### Step 5: Access the Application
+The container's bridge address is reachable from the host. To reach it from
+the rest of the LAN, forward a port (`incus config device add farmsteader web
+proxy listen=tcp:0.0.0.0:80 connect=tcp:127.0.0.1:80`) or attach the container
+to a bridged NIC so it gets an address from your router.
 
-Find the container's IP address:
+### Testing the installer against a local build
+
+`--base-url` points both scripts at another release source, and `curl` reads
+`file://` URLs, so a local tarball can be installed without publishing or
+serving anything:
 
 ```bash
-incus list farmsteader -c n4
+bash scripts/build-tarball.sh 0.3.0-test1      # config/__version__.py must say the same
+incus exec farmsteader -- mkdir -p /root/releases/v0.3.0-test1
+incus file push dist/farmsteader-0.3.0-test1.tar.gz dist/SHA256SUMS farmsteader/root/releases/v0.3.0-test1/
+incus file push deploy/install.sh farmsteader/root/
+incus exec farmsteader -- bash /root/install.sh --version 0.3.0-test1 --base-url file:///root/releases
 ```
 
-Open `http://<container-ip>/` in your browser.
-
-### Managing the Deployment
-
-**View service status:**
-
-```bash
-incus exec farmsteader -- systemctl status farmsteader-web
-incus exec farmsteader -- systemctl status farmsteader-celery
-incus exec farmsteader -- systemctl status farmsteader-celerybeat
-```
-
-**View application logs:**
-
-```bash
-incus exec farmsteader -- journalctl -u farmsteader-web -f
-incus exec farmsteader -- journalctl -u farmsteader-celery -f
-```
-
-**Restart services after code changes:**
-
-```bash
-# Push updated code
-incus file push -r /path/to/farmsteader/ farmsteader/opt/
-
-# Inside the container
-incus exec farmsteader -- bash -c '
-  cd /opt/farmsteader
-  .venv/bin/pip install -r requirements/prod.txt
-  .venv/bin/python manage.py migrate --noinput
-  .venv/bin/python manage.py collectstatic --noinput
-  systemctl restart farmsteader-web farmsteader-celery farmsteader-celerybeat
-'
-```
-
-**Database backup (manual):**
-
-```bash
-incus exec farmsteader -- su - postgres -c \
-  'pg_dump farmsteader | gzip > /var/backups/farmsteader/manual-backup.sql.gz'
-```
-
-**Copy backup to host:**
-
-```bash
-incus file pull farmsteader/var/backups/farmsteader/manual-backup.sql.gz ./
-```
-
-### SSL/TLS (Optional)
-
-If the container is accessible from the internet (e.g., via port forwarding), set up Let's Encrypt:
-
-```bash
-incus exec farmsteader -- certbot --nginx -d your-domain.com
-```
-
-Update `ALLOWED_HOSTS` in the `.env` file and set `SECURE_SSL_REDIRECT=True` in production settings.
-
-### Networking
-
-By default, Incus containers get an IP on a bridge network accessible from the host. To make the app available on your LAN:
-
-**Option A: Proxy device (recommended)**
-
-```bash
-incus config device add farmsteader web proxy \
-  listen=tcp:0.0.0.0:80 connect=tcp:127.0.0.1:80
-```
-
-This forwards port 80 on the host to port 80 in the container.
-
-**Option B: Bridged networking**
-
-Configure the container to use a bridged NIC on your LAN so it gets its own IP from your router's DHCP.
+The version in `config/__version__.py` must match the tarball's: the installer
+only declares success when `/healthz` reports the version it installed.
 
 ---
 
@@ -772,13 +777,13 @@ farmsteader/
 │       ├── leaflet.draw.js
 │       └── turf.min.js
 │
-├── deploy/incus/               # LXC deployment configs
-│   ├── setup.sh                # Automated provisioning script
-│   ├── farmsteader.nginx.conf  # Nginx reverse proxy config
-│   ├── gunicorn.conf.py        # Gunicorn WSGI config
-│   ├── farmsteader-web.service
-│   ├── farmsteader-celery.service
-│   └── farmsteader-celerybeat.service
+├── deploy/                     # Server install (ships in the release tarball)
+│   ├── install.sh              # Bootstrap: fetch + verify a release, then run its common.sh
+│   ├── update.sh               # In-place upgrade with automatic rollback
+│   ├── lib/common.sh           # All install/upgrade steps (fs_* functions)
+│   ├── gunicorn.conf.py        # Env-driven gunicorn config
+│   ├── nginx/farmsteader.conf  # Reverse proxy + static/media
+│   └── systemd/                # farmsteader-{web,celery,celerybeat}.service
 │
 ├── media/                      # User uploads (git-ignored)
 └── staticfiles/                # Collected static (git-ignored)

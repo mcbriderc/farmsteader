@@ -35,10 +35,10 @@ TODAY="$(date +%Y-%m-%d)"
 
 # --- Preflight --------------------------------------------------------------
 
-# Releases are cut from master, always. The release workflow mirrors master to a
-# public repository and pushes the tag alongside it; a tag made on a feature
-# branch would either point at a commit that is not on master, or drag unmerged
-# work into a public release. Enforced rather than left as a convention, because
+# Releases are cut from master, always. The release workflow publishes the
+# tagged tree as a public snapshot and release; a tag made on a feature branch
+# would publish a commit that is not on master, dragging unmerged work into a
+# public release. Enforced rather than left as a convention, because
 # the consequence only shows up after publication.
 RELEASE_BRANCH="${FS_RELEASE_BRANCH:-master}"
 branch="$(git rev-parse --abbrev-ref HEAD)"

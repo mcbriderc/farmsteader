@@ -1,0 +1,37 @@
+[Unit]
+Description=FarmSteader background worker (celery)
+Documentation=https://github.com/mcbriderc/farmsteader
+Wants=network-online.target
+# Ordered after redis but not Requires= it: a broker blip should not stop the
+# worker, and Restart=always brings it back when redis returns.
+After=network-online.target postgresql.service redis-server.service
+
+[Service]
+# A plain foreground worker. `celery multi` daemonized itself behind a pidfile
+# that systemd tracked poorly, which left orphaned workers after restarts.
+Type=simple
+User=farmsteader
+Group=farmsteader
+WorkingDirectory=/opt/farmsteader/current
+EnvironmentFile=/etc/farmsteader/env
+# --max-tasks-per-child recycles a child after the yfinance task, which imports
+# pandas + numpy (~160 MB) and never gives the memory back.
+ExecStart=/opt/farmsteader/current/.venv/bin/celery -A config worker \
+    --loglevel=info \
+    --concurrency=${CELERY_CONCURRENCY} \
+    --max-tasks-per-child=50
+Restart=always
+RestartSec=10
+KillMode=mixed
+TimeoutStopSec=60
+
+RuntimeDirectory=farmsteader-celery
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/farmsteader /var/log/farmsteader
+
+[Install]
+WantedBy=multi-user.target

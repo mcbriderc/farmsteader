@@ -13,6 +13,43 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-28
+
+### Added
+
+- **One-command server install.** `deploy/install.sh` installs FarmSteader on
+  a fresh Debian 13 or Ubuntu machine, container or VM: PostgreSQL + PostGIS,
+  Redis, nginx and the app, with an admin account and nightly database backups.
+  It downloads a published release, verifies its checksum, and only reports
+  success once the site answers with the version it installed.
+- **In-place upgrades with automatic rollback.** `deploy/update.sh` upgrades to
+  a newer release, taking a database dump first. If migrations fail or the new
+  version does not come up healthy, the previous release and the database are
+  restored automatically. Configuration and uploaded files are never touched.
+
+### Changed
+
+- Each release is installed in its own directory with its own Python
+  environment, and the running version is switched with a single symlink, so
+  an upgrade can be undone exactly.
+- Web and background-worker counts are sized from the machine's memory instead
+  of its CPU count, which inside a container could be the host's and start
+  enough processes to exhaust memory.
+
+### Fixed
+
+- Restarting or stopping the background worker no longer takes the website
+  down (the services shared a runtime directory, and stopping one deleted the
+  web server's socket).
+- The scheduler keeps its record of when tasks last ran across reboots, so
+  daily tasks no longer re-run after a restart.
+- A fresh install no longer fails to create the PostGIS extension, and
+  generated database passwords can no longer break the database URL.
+
+### Removed
+
+- `deploy/incus/setup.sh`, replaced by `deploy/install.sh`.
+
 ## [0.2.1] - 2026-09-28
 
 ### Changed
@@ -107,5 +144,6 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.3.0...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
+[0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0

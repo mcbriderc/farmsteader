@@ -1,0 +1,35 @@
+[Unit]
+Description=FarmSteader web (gunicorn)
+Documentation=https://github.com/mcbriderc/farmsteader
+Wants=network-online.target
+After=network-online.target postgresql.service redis-server.service
+Requires=postgresql.service
+
+[Service]
+Type=notify
+User=farmsteader
+Group=farmsteader
+WorkingDirectory=/opt/farmsteader/current
+EnvironmentFile=/etc/farmsteader/env
+ExecStart=/opt/farmsteader/current/.venv/bin/gunicorn config.wsgi:application \
+    -c /opt/farmsteader/current/deploy/gunicorn.conf.py
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+KillMode=mixed
+TimeoutStopSec=35
+
+# Owns /run/farmsteader, where nginx finds the socket. Each unit has its own
+# runtime directory: when they shared one, stopping celery deleted it -- and
+# gunicorn's socket with it -- taking the site down.
+RuntimeDirectory=farmsteader
+RuntimeDirectoryMode=0755
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/farmsteader /var/log/farmsteader
+
+[Install]
+WantedBy=multi-user.target
