@@ -654,6 +654,59 @@ Then add the hostname to `ALLOWED_HOSTS`, set `FARMSTEADER_HTTPS=1` in
 `/etc/farmsteader/env`, and restart the services. That one switch turns on the
 HTTPS redirect, secure cookies and HSTS.
 
+### Proxmox VE
+
+On a Proxmox VE 8 or 9 node, open the node's **Shell** and run:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/mcbriderc/farmsteader/master/ct/farmsteader.sh)"
+```
+
+Choose **Default settings** for an unprivileged Debian 13 container with 2 CPU,
+2 GB RAM and 10 GB disk on DHCP, or **Advanced** to set the container ID,
+hostname, size, storage, static IP/gateway, VLAN, root password, admin
+account, extra hostnames, USDA key, backups and version. It then:
+
+1. picks the storage for the template and for the disk separately (on most
+   clusters they differ: templates on `local`, disks on `local-lvm` or ZFS)
+2. downloads the newest `debian-13-standard` template -- resolved at run time,
+   never a hardcoded filename
+3. creates the container (`nesting=1`, 1 GB swap, start on boot, host
+   timezone, tag `farmsteader`), starts it and waits for its network
+4. runs FarmSteader's own `deploy/install.sh` inside it -- the same installer
+   as everywhere else -- and writes the address into the container's Notes
+5. prints the address and admin login
+
+If anything fails after the container is created, it offers to remove the
+half-built container so a re-run starts clean. Cancelling any menu creates
+nothing.
+
+**Updating:** run the same command again. When FarmSteader containers (tag
+`farmsteader`) exist on the node it offers to update one, which runs that
+container's own `deploy/update.sh` -- including its automatic rollback.
+
+**Unattended:** `FS_CT_DEFAULTS=1` skips every menu. Any setting can be preset
+in the environment, e.g.
+
+```bash
+FS_CT_DEFAULTS=1 CT_HOSTNAME=barn var_ram=4096 NET=192.168.1.40/24 GATE=192.168.1.1 \
+  FS_ADMIN_EMAIL=you@example.com bash -c "$(curl -fsSL https://raw.githubusercontent.com/mcbriderc/farmsteader/master/ct/farmsteader.sh)"
+```
+
+The answers (including any admin password) reach the container as a `0600`
+file, never on a command line, and are deleted when the install finishes.
+
+**Without a cluster:** `FARMSTEADER_DRY_RUN=1 bash ct/farmsteader.sh` (from a
+checkout) replaces `pct`/`pveam`/`pvesm`/`pvesh` with stubs and prints every
+command it would run. `tests/test_proxmox_installer.py` pins that output: the
+exact `pct create` line, template and storage selection, and that cancelling
+creates nothing.
+
+The scripts live in `ct/` (host), `install/` (inside the container) and
+`misc/` (helpers), in the community-scripts layout. The GitHub copy is
+updated at each release, so changes here reach the one-liner with the next
+release.
+
 ### Incus quick start
 
 ```bash
@@ -777,6 +830,9 @@ farmsteader/
 │       ├── leaflet.draw.js
 │       └── turf.min.js
 │
+├── ct/farmsteader.sh           # Proxmox VE host installer (creates the container)
+├── install/                    # Runs inside that container; calls deploy/install.sh
+├── misc/                       # build.func (host) / install.func (container) helpers
 ├── deploy/                     # Server install (ships in the release tarball)
 │   ├── install.sh              # Bootstrap: fetch + verify a release, then run its common.sh
 │   ├── update.sh               # In-place upgrade with automatic rollback

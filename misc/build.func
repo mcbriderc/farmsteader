@@ -1,0 +1,245 @@
+# shellcheck shell=bash
+#
+# Host-side helpers for ct/farmsteader.sh, run on a Proxmox VE node.
+#
+# Modelled on the community-scripts layout (ct/ + install/ + misc/), but our
+# own: upstream's build.func hardcodes its own URLs, so a third-party app cannot
+# source it. For a later upstream submission, ct/ and install/ keep their shape
+# and misc/ is dropped in favour of theirs.
+#
+# FARMSTEADER_DRY_RUN=1 replaces pct/pveam/pvesm/pvesh/pveversion with stubs
+# that print what would run and return canned output, so the whole host flow
+# -- menus, storage and template selection, the `pct create` line -- runs on
+# any Linux box. tests/test_proxmox_installer.py pins that output.
+
+# --- Output ------------------------------------------------------------------
+
+# Colours are used by ct/farmsteader.sh, which sources this file.
+# shellcheck disable=SC2034
+if [ -t 1 ]; then
+    BOLD=$'\e[1m' GN=$'\e[32m' RD=$'\e[31m' YW=$'\e[33m' CL=$'\e[0m'
+else
+    BOLD="" GN="" RD="" YW="" CL=""
+fi
+SPINNER_PID=""
+
+spinner_stop() {
+    if [ -n "$SPINNER_PID" ]; then
+        kill "$SPINNER_PID" 2>/dev/null || true
+        wait "$SPINNER_PID" 2>/dev/null || true
+        SPINNER_PID=""
+        [ -t 1 ] && printf '\r\e[K'
+    fi
+}
+
+msg_info() {
+    spinner_stop
+    if [ -t 1 ] && [ "${VERBOSE:-no}" != yes ]; then
+        (
+            local frames=$'|/-\\' i=0
+            while :; do
+                printf '\r %s %s' "${frames:i++%4:1}" "$1"
+                sleep 0.2
+            done
+        ) &
+        SPINNER_PID=$!
+    else
+        printf ' ... %s\n' "$1"
+    fi
+}
+msg_ok()    { spinner_stop; printf ' %s✓%s %s\n' "$GN" "$CL" "$1"; }
+msg_warn()  { spinner_stop; printf ' %s!%s %s\n' "$YW" "$CL" "$1" >&2; }
+msg_error() { spinner_stop; printf ' %s✗%s %s\n' "$RD" "$CL" "$1" >&2; }
+die()       { msg_error "$1"; exit 1; }
+
+header() {
+    cat <<'EOF'
+
+   ___                    ___ _                 _
+  | __|_ _ _ _ _ __  ___ / __| |_ ___ __ _ __| |___ _ _
+  | _/ _` | '_| '  \(_-< \__ \  _/ -_) _` / _` / -_) '_|
+  |_|\__,_|_| |_|_|_/__/ |___/\__\___\__,_\__,_\___|_|
+
+  Farm management -- Proxmox LXC installer
+
+EOF
+}
+
+# --- Error handling ----------------------------------------------------------
+
+CT_CREATED=0
+
+# A failure after `pct create` would otherwise leave a half-built container
+# holding its ID; offer to remove it so a re-run starts clean.
+error_handler() {
+    local rc=$? line=$1
+    # In a $(...) prompt the subshell just exits; the parent reports once.
+    [ "${BASH_SUBSHELL:-0}" -gt 0 ] && exit "$rc"
+    spinner_stop
+    if [ "$rc" = "$WT_CANCEL_RC" ]; then
+        echo; msg_warn "cancelled -- nothing was created"; exit 0
+    fi
+    msg_error "failed (exit $rc) at line $line"
+    if [ "$CT_CREATED" = 1 ] && [ -n "${CTID:-}" ]; then
+        if [ "${FS_CT_DEFAULTS:-0}" = 1 ] || wt_yesno "Installation failed" \
+            "Container $CTID was created but FarmSteader did not install.\n\nRemove container $CTID?"; then
+            pct stop "$CTID" >/dev/null 2>&1 || true
+            pct destroy "$CTID" >/dev/null 2>&1 && msg_ok "removed container $CTID"
+        else
+            msg_warn "container $CTID kept for inspection:  pct enter $CTID"
+        fi
+    fi
+    exit "$rc"
+}
+
+# A caller that needs cleanup defines fs_on_exit(); a second `trap ... EXIT`
+# would silently replace this one.
+catch_errors() {
+    set -Eeuo pipefail
+    trap 'error_handler $LINENO' ERR
+    trap 'spinner_stop; if declare -F fs_on_exit >/dev/null; then fs_on_exit; fi' EXIT
+}
+
+# --- Preflight ---------------------------------------------------------------
+
+root_check() {
+    [ "${FARMSTEADER_DRY_RUN:-0}" = 1 ] && return
+    [ "$(id -u)" = 0 ] || die "run as root on the Proxmox host"
+}
+
+pve_check() {
+    command -v pveversion >/dev/null 2>&1 || die "this must run on a Proxmox VE host (pveversion not found)"
+    local v
+    v=$(pveversion | sed -n 's|^pve-manager/\([0-9]*\)\..*|\1|p')
+    case "$v" in
+        8|9) ;;
+        *) die "Proxmox VE 8 or 9 is required (found: $(pveversion))" ;;
+    esac
+}
+
+arch_check() {
+    [ "$(uname -m)" = x86_64 ] || die "amd64 (x86_64) hosts only -- FarmSteader's release is built for it"
+}
+
+# --- whiptail wrappers -------------------------------------------------------
+#
+# Every wrapper treats Cancel (1) and Esc (255) as "stop the installer"; a
+# half-answered menu must never fall through to `pct create`. Prompts run in
+# $(...), where a plain exit would only leave the subshell and the installer
+# would carry on with an empty answer -- so cancelling exits with a dedicated
+# code that error_handler turns into a clean stop.
+
+WT_TITLE="FarmSteader"
+WT_CANCEL_RC=130
+
+wt_cancelled() {
+    [ "${BASH_SUBSHELL:-0}" -gt 0 ] && exit "$WT_CANCEL_RC"
+    spinner_stop; echo; msg_warn "cancelled -- nothing was created"; exit 0
+}
+
+wt_input() {  # title prompt default
+    local out
+    out=$(whiptail --backtitle "$WT_TITLE" --title "$1" --inputbox "$2" 10 64 "$3" 3>&1 1>&2 2>&3) || wt_cancelled
+    printf '%s\n' "$out"
+}
+
+wt_password() {  # title prompt
+    local out
+    out=$(whiptail --backtitle "$WT_TITLE" --title "$1" --passwordbox "$2" 10 64 3>&1 1>&2 2>&3) || wt_cancelled
+    printf '%s\n' "$out"
+}
+
+wt_menu() {  # title prompt tag item [tag item...]
+    local title=$1 prompt=$2 out
+    shift 2
+    out=$(whiptail --backtitle "$WT_TITLE" --title "$title" --menu "$prompt" 18 72 8 "$@" 3>&1 1>&2 2>&3) || wt_cancelled
+    printf '%s\n' "$out"
+}
+
+# yes -> 0, no -> 1, Esc -> cancel the installer.
+wt_yesno() {  # title prompt
+    local rc=0
+    whiptail --backtitle "$WT_TITLE" --title "$1" --yesno "$2" 12 68 || rc=$?
+    [ "$rc" = 255 ] && wt_cancelled
+    return "$rc"
+}
+
+# --- Proxmox queries ---------------------------------------------------------
+
+get_valid_nextid() { pvesh get /cluster/nextid; }
+
+# Storage that can hold the given content type. The template store and the
+# root-disk store are selected separately: on real clusters they are often
+# different (templates on `local`, disks on `local-lvm` or ZFS), and assuming
+# one store for both is the most common way these installers fail.
+select_storage() {  # rootdir|vztmpl
+    local content=$1 label list=() name type free
+    label=$([ "$content" = rootdir ] && echo "container disk" || echo "template")
+    while read -r name type _ _ _ free _; do
+        [ "$name" = Name ] && continue
+        list+=("$name" "$type, $((free / 1024 / 1024)) GB free")
+    done < <(pvesm status -content "$content" 2>/dev/null)
+    [ "${#list[@]}" -gt 0 ] || die "no storage accepts $label content ($content)"
+    if [ "${#list[@]}" -eq 2 ] || [ "${FS_CT_DEFAULTS:-0}" = 1 ]; then
+        printf '%s\n' "${list[0]}"
+    else
+        wt_menu "Storage" "Where should the $label go?" "${list[@]}"
+    fi
+}
+
+# Newest Debian 13 standard template, resolved at run time. Never hardcode the
+# file name: point releases change it, and a pinned name is the most common
+# way these installers rot.
+latest_template() {
+    pveam available -section system | awk '/debian-13-standard_/ {print $2}' | sort -V | tail -1
+}
+
+# `pct list`'s Lock column is usually empty, so fields shift; the ID is always
+# first and the name always last.
+farmsteader_containers() {  # prints "ctid name" for CTs tagged farmsteader
+    local id name
+    while read -r id name; do
+        pct config "$id" 2>/dev/null | grep -E '^tags:.*farmsteader' >/dev/null && printf '%s %s\n' "$id" "$name"
+    done < <(pct list | awk 'NR > 1 {print $1, $NF}')
+}
+
+# --- Dry-run stubs -----------------------------------------------------------
+
+if [ "${FARMSTEADER_DRY_RUN:-0}" = 1 ]; then
+    _stub() { printf '    [dry-run] %s\n' "$*" >&2; }
+    pveversion() { echo "pve-manager/9.0.10/deadbeef (running kernel: 6.14.8-2-pve)"; }
+    pvesh() { [ "$*" = "get /cluster/nextid" ] && echo 105; }
+    pvesm() {
+        case "$*" in
+            "status -content rootdir")
+                printf 'Name Type Status Total Used Available %%\n'
+                printf 'local-lvm lvmthin active 100000000 1000000 99000000 1.00%%\n' ;;
+            "status -content vztmpl")
+                printf 'Name Type Status Total Used Available %%\n'
+                printf 'local dir active 50000000 5000000 45000000 10.00%%\n' ;;
+        esac
+    }
+    pveam() {
+        case "$1" in
+            available) printf 'system          debian-12-standard_12.12-1_amd64.tar.zst\nsystem          debian-13-standard_13.1-2_amd64.tar.zst\nsystem          debian-13-standard_13.0-1_amd64.tar.zst\n' ;;
+            list) printf 'NAME SIZE\n' ;;
+            *) _stub pveam "$@" ;;
+        esac
+    }
+    pct() {
+        case "$1" in
+            list) printf 'VMID       Status     Lock         Name\n' ;;
+            exec)
+                case "$*" in
+                    *"getent hosts"*) return 0 ;;
+                    *"hostname -I"*) echo 192.168.1.50 ;;
+                    *farmsteader.creds*) printf 'FarmSteader admin login\n  user:     admin\n  password: dry-run-password\n' ;;
+                    *) _stub pct "$@" ;;
+                esac ;;
+            *) _stub pct "$@" ;;
+        esac
+    }
+    # FARMSTEADER_DRY_RUN_WT_RC=1 simulates the user pressing Cancel.
+    whiptail() { _stub whiptail "$@"; return "${FARMSTEADER_DRY_RUN_WT_RC:-0}"; }
+    sleep() { :; }
+fi

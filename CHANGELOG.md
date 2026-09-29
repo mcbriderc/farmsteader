@@ -13,6 +13,17 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-28
+
+### Added
+
+- **Proxmox VE installer.** From a Proxmox VE 8 or 9 node's shell, one command
+  creates an unprivileged Debian 13 container and installs FarmSteader in it,
+  with default settings or an advanced menu (size, storage, static IP, VLAN,
+  admin account and more). Running it again offers to update an existing
+  FarmSteader container, using that install's own rollback-safe updater. It can
+  also run unattended with every setting preset in the environment.
+
 ## [0.3.0] - 2026-09-28
 
 ### Added
@@ -144,6 +155,7 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.4.0...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
+[0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0

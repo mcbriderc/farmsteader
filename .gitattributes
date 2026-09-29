@@ -18,6 +18,14 @@
 /podman-compose.yml  export-ignore
 /sonar-project.properties export-ignore
 
+# The Proxmox installer runs on the PVE host, never from an installed release:
+# it is fetched from the public repo by URL. Excluded from the tarball only --
+# the GitHub snapshot (scripts/publish-snapshot.sh) is built from the git tree,
+# not this archive, so these still publish there, which is what the one-liner needs.
+/ct                  export-ignore
+/install             export-ignore
+/misc                export-ignore
+
 # scripts/ is excluded because the tarball ships a pre-built stylesheet, so
 # nothing in it needs to compile CSS; build-tarball.sh and release.sh need real
 # git history and are meaningless outside a checkout; and scripts/ci/test.sh

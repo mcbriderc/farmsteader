@@ -1,0 +1,66 @@
+# shellcheck shell=bash
+#
+# Container-side helpers for install/farmsteader-install.sh. Runs inside the
+# new container, which cannot source the host's misc/build.func -- hence the
+# small duplicated message helpers.
+
+msg_info()  { printf ' ... %s\n' "$1"; }
+msg_ok()    { printf ' ✓ %s\n' "$1"; }
+msg_warn()  { printf ' ! %s\n' "$1" >&2; }
+die()       { printf ' ✗ %s\n' "$1" >&2; exit 1; }
+
+catch_errors() {
+    set -Eeuo pipefail
+    trap 'die "failed (exit $?) at line $LINENO of the container-side installer"' ERR
+}
+
+# Django and nginx both resolve the machine's own hostname; a fresh template
+# does not always map it, and sudo/postgres then stall on DNS timeouts.
+setting_up_container() {
+    msg_info "Preparing the container"
+    local hn
+    hn=$(hostname)
+    grep -qE "[[:space:]]$hn([[:space:]]|\$)" /etc/hosts || printf '127.0.1.1\t%s\n' "$hn" >>/etc/hosts
+    # A UTF-8 locale that exists in every Debian template, so PostgreSQL's
+    # initdb and Python agree on encoding.
+    export LANG=C.UTF-8 LC_ALL=C.UTF-8
+    msg_ok "container prepared ($hn)"
+}
+
+# The template's network can lag `pct start`; retry with backoff before
+# declaring it broken.
+network_check() {
+    local i
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        getent hosts deb.debian.org >/dev/null 2>&1 && { msg_ok "network is up"; return; }
+        sleep "$i"
+    done
+    die "no DNS/network inside the container (cannot resolve deb.debian.org)"
+}
+
+update_os() {
+    msg_info "Updating the OS (this can take a minute)"
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq >/dev/null
+    apt-get -y -qq -o Dpkg::Options::=--force-confold dist-upgrade >/dev/null
+    msg_ok "OS up to date"
+}
+
+motd_ssh() {
+    local ip
+    ip=$(hostname -I | awk '{print $1}')
+    cat >/etc/motd <<EOF
+
+  FarmSteader   http://${ip:-<this-container>}/
+  Config:       /etc/farmsteader/env
+  Logs:         journalctl -u farmsteader-web -f
+  Update:       /opt/farmsteader/current/deploy/update.sh
+
+EOF
+}
+
+customize() {
+    apt-get -y -qq autoremove >/dev/null 2>&1 || true
+    apt-get -y -qq clean >/dev/null 2>&1 || true
+    rm -rf /var/lib/apt/lists/*
+}
