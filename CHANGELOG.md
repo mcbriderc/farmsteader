@@ -13,6 +13,27 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-30
+
+### Added
+
+- **Property boundaries.** Draw the outline of each piece of land the farm
+  owns or leases, separately from its fields, with acreage calculated the same
+  way as fields and an optional county tax parcel number. Each property's page
+  shows which fields sit on it and how much of it they cover -- counting only
+  the part of a field inside the property line, and counting overlapping fields
+  once. Properties are drawn as dashed outlines on the farm map (each layer can
+  be toggled), shown as a guide while drawing fields, and included in whole-farm
+  backups and CSV/XLSX import and export.
+
+### Fixed
+
+- Field names are no longer rendered as HTML in map popups. A field named with
+  HTML markup could run script in the browser of anyone who opened the map.
+- A boundary that crosses itself is now rejected with a clear message instead
+  of being saved with a meaningless acreage, and the "must be a polygon" error
+  no longer appears wrapped as "Invalid GeoJSON: [...]".
+
 ## [0.4.0] - 2026-09-28
 
 ### Added
@@ -155,7 +176,8 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.5.0...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
 [0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0
+[0.5.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.5.0

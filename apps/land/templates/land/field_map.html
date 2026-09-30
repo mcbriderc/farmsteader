@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Field Map — FarmSteader{% endblock %}
+{% block title %}Farm Map — FarmSteader{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'vendor/css/leaflet.css' %}">
@@ -9,10 +9,16 @@
 
 {% block content %}
 <div class="flex items-center justify-between mb-4">
-  <h1 class="text-2xl font-bold text-gray-900">Field Map</h1>
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Farm Map</h1>
+    <p class="text-gray-500 text-sm mt-1">Fields are filled; property lines are dashed. Toggle either in the layer control.</p>
+  </div>
   <div class="flex gap-2">
     <a href="{% url 'land:field_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
-      List View
+      Fields
+    </a>
+    <a href="{% url 'land:parcel_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Property Boundaries
     </a>
     <a href="{% url 'land:field_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">
       + Add Field
@@ -37,36 +43,56 @@ document.addEventListener('DOMContentLoaded', function() {
     attribution: '&copy; Esri', maxZoom: 19,
   });
   street.addTo(map);
-  L.control.layers({'Street': street, 'Satellite': satellite}).addTo(map);
 
-  // Load existing fields
-  fetch('{% url "land:field_geojson" %}')
-    .then(r => r.json())
-    .then(data => {
-      if (data.features.length === 0) return;
+  // Popups are built from DOM nodes, never strings: Leaflet renders a string
+  // popup as HTML, and names are user-entered, so a string here is stored XSS.
+  function popupFor(p, noun) {
+    const box = document.createElement('div');
+    box.className = 'text-sm';
+    const title = document.createElement('strong');
+    title.textContent = p.name;
+    const kind = document.createElement('div');
+    kind.textContent = noun + ' · ' + p.acreage + ' acres';
+    const link = document.createElement('a');
+    link.href = p.url;
+    link.className = 'text-blue-600';
+    link.textContent = 'View details →';
+    box.append(title, kind, link);
+    return box;
+  }
 
-      const layer = L.geoJSON(data, {
-        style: function(feature) {
-          return {
-            color: feature.properties.color,
-            weight: 2,
-            fillOpacity: 0.3,
-          };
-        },
-        onEachFeature: function(feature, layer) {
-          const p = feature.properties;
-          layer.bindPopup(
-            '<div class="text-sm">' +
-            '<strong>' + p.name + '</strong><br>' +
-            p.acreage + ' acres<br>' +
-            '<a href="' + p.url + '" class="text-blue-600">View details &rarr;</a>' +
-            '</div>'
-          );
-        },
-      }).addTo(map);
+  const parcels = L.geoJSON(null, {
+    style: function(f) {
+      return { color: f.properties.color, weight: 3, dashArray: '8 6', fillOpacity: 0.05 };
+    },
+    onEachFeature: function(f, layer) { layer.bindPopup(popupFor(f.properties, 'Property')); },
+  });
+  const fields = L.geoJSON(null, {
+    style: function(f) {
+      return { color: f.properties.color, weight: 2, fillOpacity: 0.3 };
+    },
+    onEachFeature: function(f, layer) { layer.bindPopup(popupFor(f.properties, 'Field')); },
+  });
 
-      map.fitBounds(layer.getBounds().pad(0.1));
+  L.control.layers(
+    { 'Street': street, 'Satellite': satellite },
+    { 'Property boundaries': parcels, 'Fields': fields },
+  ).addTo(map);
+
+  Promise.all([
+    fetch('{% url "land:parcel_geojson" %}').then(function(r) { return r.json(); }),
+    fetch('{% url "land:field_geojson" %}').then(function(r) { return r.json(); }),
+  ]).then(function(results) {
+    // Property lines first, so fields sit on top of them and stay clickable.
+    parcels.addData(results[0]).addTo(map);
+    fields.addData(results[1]).addTo(map);
+
+    const bounds = L.latLngBounds([]);
+    [parcels, fields].forEach(function(layer) {
+      if (layer.getLayers().length) bounds.extend(layer.getBounds());
     });
+    if (bounds.isValid()) map.fitBounds(bounds.pad(0.1));
+  });
 });
 </script>
 {% endblock %}

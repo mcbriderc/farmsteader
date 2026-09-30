@@ -1,0 +1,152 @@
+{% load static %}
+{% comment %}
+  Drawing logic for land/_boundary_editor.html.
+  Params: editing, boundary_geojson (when editing),
+          reference_url / reference_label (optional): other shapes drawn faintly
+          underneath as a guide -- property lines while drawing a field, fields
+          while drawing a property line. They are not interactive.
+{% endcomment %}
+<script src="{% static 'vendor/js/leaflet.js' %}"></script>
+<script src="{% static 'vendor/js/leaflet.draw.js' %}"></script>
+<script src="{% static 'vendor/js/turf.min.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const map = L.map('map').setView([39.8283, -98.5795], 5);
+
+  const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri', maxZoom: 19,
+  });
+  street.addTo(map);
+  L.control.layers({'Street': street, 'Satellite': satellite}).addTo(map);
+
+  const drawnItems = new L.FeatureGroup();
+  map.addLayer(drawnItems);
+
+  const drawControl = new L.Control.Draw({
+    draw: {
+      polygon: { allowIntersection: false, showArea: true },
+      polyline: false,
+      rectangle: true,
+      circle: false,
+      circlemarker: false,
+      marker: false,
+    },
+    edit: { featureGroup: drawnItems },
+  });
+  map.addControl(drawControl);
+
+  const hiddenInput = document.getElementById('id_boundary_geojson');
+  const acreagePreview = document.getElementById('acreage-preview');
+  const acreageValue = document.getElementById('acreage-value');
+
+  function updateFromLayer(layer) {
+    const geojson = layer.toGeoJSON();
+    hiddenInput.value = JSON.stringify(geojson.geometry);
+
+    // Preview only; the server recomputes acreage in an equal-area projection.
+    const areaSqM = turf.area(geojson);
+    acreageValue.textContent = (areaSqM / 4046.8564224).toFixed(2);
+    acreagePreview.style.display = 'block';
+  }
+
+  map.on(L.Draw.Event.CREATED, function(e) {
+    drawnItems.clearLayers();
+    drawnItems.addLayer(e.layer);
+    updateFromLayer(e.layer);
+  });
+
+  map.on(L.Draw.Event.EDITED, function(e) {
+    e.layers.eachLayer(function(layer) {
+      updateFromLayer(layer);
+    });
+  });
+
+  map.on(L.Draw.Event.DELETED, function() {
+    hiddenInput.value = '';
+    acreagePreview.style.display = 'none';
+  });
+
+  {% if editing and boundary_geojson %}
+  const existingLayer = L.geoJSON({{ boundary_geojson|safe }});
+  existingLayer.eachLayer(function(layer) {
+    drawnItems.addLayer(layer);
+    updateFromLayer(layer);
+  });
+  map.fitBounds(drawnItems.getBounds().pad(0.2));
+  {% endif %}
+
+  // Whichever frames the map first wins: the shape being edited, the reference
+  // shapes, and only then the user's location.
+  let framed = {% if editing and boundary_geojson %}true{% else %}false{% endif %};
+
+  // Reference shapes: dashed, faint, and underneath whatever is being drawn.
+  {% if reference_url %}
+  fetch('{{ reference_url }}')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (!data.features.length) return;
+      const reference = L.geoJSON(data, {
+        interactive: false,
+        style: function(f) {
+          return { color: f.properties.color, weight: 2, dashArray: '6 6', fill: false, opacity: 0.8 };
+        },
+      }).addTo(map);
+      reference.bringToBack();
+      const note = document.getElementById('reference-note');
+      note.textContent = 'Dashed outlines: {{ reference_label|escapejs }} (for reference).';
+      note.style.display = 'block';
+      if (!framed) {
+        map.fitBounds(reference.getBounds().pad(0.2));
+        framed = true;
+      }
+    });
+  {% endif %}
+
+  // Address search via Nominatim
+  const searchInput = document.getElementById('address-search');
+  const searchBtn = document.getElementById('address-search-btn');
+  const searchError = document.getElementById('search-error');
+
+  function doAddressSearch() {
+    const query = searchInput.value.trim();
+    if (!query) return;
+    searchError.style.display = 'none';
+    searchBtn.textContent = '...';
+    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(query), {
+      headers: { 'Accept': 'application/json' },
+    })
+      .then(r => r.json())
+      .then(results => {
+        searchBtn.textContent = 'Go';
+        if (results.length === 0) {
+          searchError.textContent = 'No results found. Try a different address.';
+          searchError.style.display = 'block';
+          return;
+        }
+        map.setView([parseFloat(results[0].lat), parseFloat(results[0].lon)], 16);
+      })
+      .catch(() => {
+        searchBtn.textContent = 'Go';
+        searchError.textContent = 'Search failed. Please try again.';
+        searchError.style.display = 'block';
+      });
+  }
+
+  searchBtn.addEventListener('click', doAddressSearch);
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); doAddressSearch(); }
+  });
+
+  if (!framed && navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(function(pos) {
+      if (framed) return;
+      map.setView([pos.coords.latitude, pos.coords.longitude], 15);
+      framed = true;
+    });
+  }
+});
+</script>

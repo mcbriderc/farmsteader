@@ -28,7 +28,7 @@ A comprehensive, self-hosted farm management web application built with Django, 
 
 FarmSteader provides a unified platform for managing all aspects of farm operations:
 
-- **Land & Fields** -- Draw field boundaries on a map, auto-calculate acreage, track crop rotations, and sync weather and soil data from public APIs.
+- **Land & Fields** -- Draw field boundaries and property lines on a map, auto-calculate acreage, see how much of each property is in fields, track crop rotations, and sync weather and soil data from public APIs.
 - **Livestock** -- Ear tag registry, species/breed tracking, breeding lineage (sire/dam), veterinary records, immunization schedules, field-to-field movement history with days-in-field tracking, and feed inventory management with full feed type CRUD (pre-seeded with 29 common feed types) and per-animal feeding logs.
 - **Crops** -- Global crop type catalog with USDA commodity codes and full CRUD management (pre-seeded with 19 common US crop types), harvest records with yield/quality/revenue, and daily market price sync from USDA NASS.
 - **Equipment** -- Track tractors, implements, and vehicles with hour meters, maintenance logs, and next-service scheduling.
@@ -180,6 +180,31 @@ The field detail page has a **weather tab** that shows 14 days of data (7 histor
 
 **Sub-models:** `WeatherCache` (daily weather per field), `SoilSample` (manual or API-sourced soil data), `CropRecord` (crop-per-field-per-season with a status timeline: planned → seeded → growing → fertilized → harvested/failed).
 
+**Property boundaries** (`/land/parcels/`) record the legal outline of each piece
+of land a farm owns or leases, separately from its fields. A property is usually
+larger than the fields on it: it also holds woodland, the farmstead, waterways and
+anything else that is never planted or grazed, so total property acreage and total
+field acreage answer different questions. Each property (`Parcel`) has a name, the
+boundary polygon, auto-calculated acreage, an optional county tax parcel number
+(APN) and a map colour. Several separate pieces of land are several properties.
+
+The property page shows **how much of it is in fields**: each field that overlaps
+it, the acres of that field *inside* the property line, and the total. It is
+measured on the overlap, not each field's own acreage, so a field that crosses
+the property line counts only for the part inside; and the total is taken over
+the union of the overlaps, so fields drawn on top of each other are not counted
+twice.
+
+The **Farm Map** (`/land/fields/map/`) draws properties as dashed outlines
+beneath the filled fields, and each layer can be toggled from the layer control.
+When drawing a field, your property lines are shown dashed as a guide; when
+drawing a property line, your fields are.
+
+Field and property acreage both come from one helper (`apps/land/geo.py`,
+`acreage_of`), so the two can never be measured differently. Boundaries that
+cross themselves are rejected with a message asking for a redraw: they have no
+meaningful area, and PostGIS cannot intersect them with a field.
+
 ### Livestock (`/livestock/`)
 
 Animal registry with ear tag as the primary identifier (unique per farm). Tracks species (cattle, sheep, goat, pig, horse, poultry, etc.), breed, gender, reproductive status, and active/sold/deceased status. Supports photo uploads.
@@ -269,6 +294,7 @@ Export supports CSV and XLSX formats. Import performs a dry-run validation first
 | Model | Key Fields |
 |---|---|
 | `Field` | `name`, `boundary` (PolygonField), `acreage` (auto-calc), `centroid_lat/lon` (auto-calc), `soil_type`, `color`, `timezone` (IANA, auto-set from Open-Meteo) |
+| `Parcel` | `name`, `boundary` (PolygonField), `acreage` (auto-calc), `parcel_number` (county tax ID/APN, optional), `color` (hex, validated) -- methods: `fields_within()`, `field_coverage()` |
 | `WeatherCache` | `field`, `date`, `temp_max_c`, `temp_min_c`, `precipitation_mm`, `wind_speed_max_kmh`, `weather_code` |
 | `SoilSample` | `field`, `source` (manual/soilgrids/usda), `sample_date`, `depth_cm`, `ph`, `organic_carbon_pct`, `nitrogen_ppm`, `sand/silt/clay_pct`, `texture_class`, `cec` |
 | `CropRecord` | `field`, `crop_name`, `variety`, `season`, `status` (planned->harvested), `planted_date`, `harvest_date`, `yield_amount/unit`, `cost` |
@@ -971,7 +997,7 @@ The Django admin is available at `/admin/` and can be used for direct database a
 
 ## Import / Export
 
-The Data I/O module at `/data/` provides CSV and XLSX import/export for 24 data types organized by module. These are per-table spreadsheets for bulk editing. To copy a whole farm — for a reinstall or an upgrade — use [Backup & Restore](#backup--restore) instead, which also carries field boundaries, photos, and farm settings.
+The Data I/O module at `/data/` provides CSV and XLSX import/export for 25 data types organized by module. These are per-table spreadsheets for bulk editing. To copy a whole farm — for a reinstall or an upgrade — use [Backup & Restore](#backup--restore) instead, which also carries field boundaries, photos, and farm settings.
 
 | Module | Exportable Data Types |
 |---|---|

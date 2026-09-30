@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}{% if editing %}Edit{% else %}New{% endif %} Field — FarmSteader{% endblock %}
+{% block title %}{% if editing %}Edit{% else %}New{% endif %} Property Boundary — FarmSteader{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'vendor/css/leaflet.css' %}">
@@ -9,7 +9,7 @@
 
 {% block content %}
 <div class="max-w-4xl mx-auto">
-  <h1 class="text-2xl font-bold text-gray-900 mb-6">{% if editing %}Edit Field{% else %}New Field{% endif %}</h1>
+  <h1 class="text-2xl font-bold text-gray-900 mb-6">{% if editing %}Edit Property Boundary{% else %}New Property Boundary{% endif %}</h1>
 
   {% if form.errors %}
   <div class="bg-red-50 text-red-700 text-sm rounded-lg p-3 mb-4">
@@ -21,13 +21,13 @@
   </div>
   {% endif %}
 
-  <form method="post" id="field-form">
+  <form method="post" id="parcel-form">
     {% csrf_token %}
 
-    {% include "land/_boundary_editor.html" with heading="Draw Field Boundary" help="Use the polygon tool on the map to draw your field boundary. Click points to define corners, then click the first point to close the shape." %}
+    {% include "land/_boundary_editor.html" with heading="Draw the Property Line" help="Trace the outer boundary of this piece of land — the whole property, not just the farmed part. Your fields are shown dashed for reference. If you own several separate pieces, add each one as its own property." %}
 
     <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 mb-4 space-y-4">
-      <h2 class="font-semibold text-gray-900 mb-2">Field Details</h2>
+      <h2 class="font-semibold text-gray-900 mb-2">Property Details</h2>
 
       <div>
         <label for="id_name" class="block text-sm font-medium text-gray-700 mb-1">Name</label>
@@ -36,8 +36,9 @@
 
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label for="id_soil_type" class="block text-sm font-medium text-gray-700 mb-1">Soil Type</label>
-          {{ form.soil_type }}
+          <label for="id_parcel_number" class="block text-sm font-medium text-gray-700 mb-1">Parcel Number <span class="text-gray-400 font-normal">(optional)</span></label>
+          {{ form.parcel_number }}
+          <p class="text-xs text-gray-500 mt-1">County tax parcel ID / APN</p>
         </div>
         <div>
           <label for="id_color" class="block text-sm font-medium text-gray-700 mb-1">Map Color</label>
@@ -53,9 +54,9 @@
 
     <div class="flex gap-3">
       <button type="submit" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-6 rounded-lg transition">
-        {% if editing %}Update{% else %}Create{% endif %} Field
+        {% if editing %}Update{% else %}Create{% endif %} Property
       </button>
-      <a href="{% if editing %}{% url 'land:field_detail' field.pk %}{% else %}{% url 'land:field_list' %}{% endif %}"
+      <a href="{% if editing %}{% url 'land:parcel_detail' parcel.pk %}{% else %}{% url 'land:parcel_list' %}{% endif %}"
          class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-6 rounded-lg transition">
         Cancel
       </a>
@@ -65,6 +66,6 @@
 {% endblock %}
 
 {% block extra_js %}
-{% if show_parcels %}{% url 'land:parcel_geojson' as reference_url %}{% endif %}
-{% include "land/_boundary_editor_js.html" with reference_label="your property boundaries" %}
+{% url 'land:field_geojson' as reference_url %}
+{% include "land/_boundary_editor_js.html" with reference_label="your fields" %}
 {% endblock %}

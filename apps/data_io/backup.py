@@ -31,7 +31,7 @@ from apps.consumables.models import ConsumableType, InventoryItem, InventoryTran
 from apps.crops.models import CropType, HarvestRecord
 from apps.employment.models import Employee, Task, TimeEntry
 from apps.equipment.models import Equipment, MaintenanceRecord
-from apps.land.models import CropRecord, Field, SoilSample
+from apps.land.models import CropRecord, Field, Parcel, SoilSample
 from apps.livestock.models import Animal, FeedLog, FeedStock, FeedType, FieldMovement, VetRecord
 from apps.produce.models import ProduceItem, ProduceTransaction
 
@@ -83,6 +83,7 @@ class ModelSpec:
 MODEL_SPECS = (
     ModelSpec(FarmSettings),
     ModelSpec(Field),
+    ModelSpec(Parcel),
     ModelSpec(Animal, deferred=("current_field", "sire", "dam")),
     ModelSpec(SoilSample),
     ModelSpec(CropRecord),

@@ -6,15 +6,36 @@ import httpx
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from apps.accounts.mixins import FarmAccessMixin
 
-from .forms import CropRecordForm, FieldForm, SoilSampleForm
-from .models import CropRecord, Field, SoilSample
+from .forms import CropRecordForm, FieldForm, ParcelForm, SoilSampleForm
+from .models import CropRecord, Field, Parcel, SoilSample
 from .tasks import sync_soil_data_for_field, sync_weather_for_field
 
 FIELD_DETAIL = "land:field_detail"
+PARCEL_DETAIL = "land:parcel_detail"
+
+
+def _feature(obj, url_name):
+    """One GeoJSON Feature for a field or parcel.
+
+    Names are user-entered: the map builds its popups from these properties
+    with DOM text nodes, never innerHTML, so they are passed through raw.
+    """
+    return {
+        "type": "Feature",
+        "geometry": json.loads(obj.boundary.json),
+        "properties": {
+            "id": obj.id,
+            "name": obj.name,
+            "acreage": float(obj.acreage),
+            "color": obj.color,
+            "url": reverse(url_name, args=[obj.pk]),
+        },
+    }
 
 
 @require_GET
@@ -34,23 +55,9 @@ def field_map(request):
 def field_geojson(request):
     """GeoJSON FeatureCollection of all farm fields."""
     fields = Field.objects.filter(farm=request.farm)
-    features = []
-    for field in fields:
-        features.append({
-            "type": "Feature",
-            "geometry": json.loads(field.boundary.json),
-            "properties": {
-                "id": field.id,
-                "name": field.name,
-                "acreage": float(field.acreage),
-                "color": field.color,
-                "url": f"/land/fields/{field.id}/",
-            },
-        })
-
     return JsonResponse({
         "type": "FeatureCollection",
-        "features": features,
+        "features": [_feature(field, FIELD_DETAIL) for field in fields],
     })
 
 
@@ -70,7 +77,9 @@ def field_create(request):
     else:
         form = FieldForm()
 
-    return render(request, "land/field_form.html", {"form": form, "editing": False})
+    return render(request, "land/field_form.html", {
+        "form": form, "editing": False, "show_parcels": Parcel.objects.filter(farm=request.farm).exists(),
+    })
 
 
 @require_http_methods(["GET", "POST"])
@@ -93,6 +102,7 @@ def field_edit(request, pk):
         "field": field,
         "editing": True,
         "boundary_geojson": field.boundary.json,
+        "show_parcels": Parcel.objects.filter(farm=request.farm).exists(),
     })
 
 
@@ -228,3 +238,86 @@ def soil_sample_create(request, field_pk):
         form = SoilSampleForm()
 
     return render(request, "land/soil_sample_form.html", {"form": form, "field": field})
+
+
+# ---------------------------------------------------------------------------
+# Property boundaries (parcels)
+# ---------------------------------------------------------------------------
+
+@require_GET
+def parcel_list(request):
+    parcels = Parcel.objects.filter(farm=request.farm)
+    total = sum(p.acreage for p in parcels)
+    return render(request, "land/parcel_list.html", {"parcels": parcels, "total_acreage": total})
+
+
+@require_GET
+def parcel_geojson(request):
+    """GeoJSON FeatureCollection of the farm's property boundaries."""
+    parcels = Parcel.objects.filter(farm=request.farm)
+    return JsonResponse({
+        "type": "FeatureCollection",
+        "features": [_feature(parcel, PARCEL_DETAIL) for parcel in parcels],
+    })
+
+
+@require_http_methods(["GET", "POST"])
+def parcel_create(request):
+    if request.method == "POST":
+        form = ParcelForm(request.POST)
+        if form.is_valid():
+            parcel = form.save(commit=False)
+            parcel.farm = request.farm
+            parcel.save()
+            messages.success(request, f'Property "{parcel.name}" added ({parcel.acreage} acres).')
+            return redirect(PARCEL_DETAIL, pk=parcel.pk)
+    else:
+        form = ParcelForm()
+    return render(request, "land/parcel_form.html", {"form": form, "editing": False})
+
+
+@require_GET
+def parcel_detail(request, pk):
+    parcel = get_object_or_404(Parcel, pk=pk, farm=request.farm)
+    rows, covered, covered_pct = parcel.field_coverage()
+    return render(request, "land/parcel_detail.html", {
+        "parcel": parcel,
+        "field_rows": rows,
+        "covered_acreage": covered,
+        "covered_pct": covered_pct,
+        # Rendered with |json_script, which escapes </script> in user-entered names.
+        "fields_fc": {
+            "type": "FeatureCollection",
+            "features": [_feature(field, FIELD_DETAIL) for field, _ in rows],
+        },
+    })
+
+
+@require_http_methods(["GET", "POST"])
+def parcel_edit(request, pk):
+    parcel = get_object_or_404(Parcel, pk=pk, farm=request.farm)
+    if request.method == "POST":
+        form = ParcelForm(request.POST, instance=parcel)
+        if form.is_valid():
+            parcel = form.save()
+            messages.success(request, f'Property "{parcel.name}" updated.')
+            return redirect(PARCEL_DETAIL, pk=parcel.pk)
+    else:
+        form = ParcelForm(instance=parcel)
+    return render(request, "land/parcel_form.html", {
+        "form": form,
+        "parcel": parcel,
+        "editing": True,
+        "boundary_geojson": parcel.boundary.json,
+    })
+
+
+@require_http_methods(["GET", "POST"])
+def parcel_delete(request, pk):
+    parcel = get_object_or_404(Parcel, pk=pk, farm=request.farm)
+    if request.method == "POST":
+        name = parcel.name
+        parcel.delete()
+        messages.success(request, f'Property "{name}" deleted. Fields inside it were not affected.')
+        return redirect("land:parcel_list")
+    return render(request, "land/parcel_confirm_delete.html", {"parcel": parcel})

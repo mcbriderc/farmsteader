@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ parcel.name }} — FarmSteader{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'vendor/css/leaflet.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <div class="flex items-center justify-between">
+    <div>
+      <a href="{% url 'land:parcel_list' %}" class="text-sm text-farm-600 hover:text-farm-700">&larr; All Property Boundaries</a>
+      <h1 class="text-2xl font-bold text-gray-900 mt-1">{{ parcel.name }}</h1>
+    </div>
+    <div class="flex gap-2">
+      <a href="{% url 'land:parcel_edit' parcel.pk %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">Edit</a>
+      <a href="{% url 'land:parcel_delete' parcel.pk %}" class="bg-red-50 border border-red-200 text-red-700 hover:bg-red-100 font-medium py-2 px-4 rounded-lg text-sm transition">Delete</a>
+    </div>
+  </div>
+</div>
+
+{# Summary cards #}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Total Acreage</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ parcel.acreage }} ac</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">In Fields</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ covered_acreage|floatformat:2 }} ac</div>
+    <div class="text-xs text-gray-500 mt-1">{{ covered_pct }}% of the property</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Fields</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ field_rows|length }}</div>
+  </div>
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Parcel Number</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ parcel.parcel_number|default:"—" }}</div>
+  </div>
+</div>
+
+{# Map #}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+  <div id="map" class="w-full rounded-lg" style="height: 360px;"></div>
+</div>
+
+{# Fields on this property #}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+  <h2 class="font-semibold text-gray-900 mb-3">Fields on this property</h2>
+  {% if field_rows %}
+  <table class="w-full text-sm">
+    <thead>
+      <tr class="text-left text-gray-500 border-b border-gray-200">
+        <th class="py-2 font-medium">Field</th>
+        <th class="py-2 font-medium text-right">Field acreage</th>
+        <th class="py-2 font-medium text-right">Inside this property</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for field, inside in field_rows %}
+      <tr class="border-b border-gray-100">
+        <td class="py-2">
+          <a href="{% url 'land:field_detail' field.pk %}" class="inline-flex items-center gap-2 text-farm-700 hover:text-farm-800 font-medium">
+            <span class="w-3 h-3 rounded-full inline-block" style="background-color: {{ field.color }}"></span>{{ field.name }}
+          </a>
+        </td>
+        <td class="py-2 text-right">{{ field.acreage }} ac</td>
+        <td class="py-2 text-right">{{ inside|floatformat:2 }} ac</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="text-xs text-gray-500 mt-3">
+    A field that crosses the property line counts only for the part inside it, and ground shared by
+    overlapping fields is counted once.
+  </p>
+  {% else %}
+  <p class="text-sm text-gray-500">No fields fall inside this property yet.
+    <a href="{% url 'land:field_create' %}" class="text-farm-600 hover:text-farm-700 font-medium">Draw a field</a>
+  </p>
+  {% endif %}
+</div>
+
+{% if parcel.notes %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+  <h2 class="font-semibold text-gray-900 mb-2">Notes</h2>
+  <p class="text-sm text-gray-700 whitespace-pre-line">{{ parcel.notes }}</p>
+</div>
+{% endif %}
+
+{{ fields_fc|json_script:"fields-data" }}
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'vendor/js/leaflet.js' %}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const outline = L.geoJSON({{ parcel.boundary.json|safe }}, {
+    style: { color: '{{ parcel.color }}', weight: 3, dashArray: '8 6', fillOpacity: 0.05 },
+  });
+  // Pixel padding rather than .pad(): a fractional pad inflates the bounds and
+  // usually costs a whole zoom level.
+  // Quarter-step zoom so a property fills the short 360px frame instead of
+  // snapping out a whole level.
+  const map = L.map('map', { zoomSnap: 0.25 }).fitBounds(outline.getBounds(), { padding: [24, 24] });
+
+  const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19,
+  });
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; Esri', maxZoom: 19,
+  });
+  street.addTo(map);
+  L.control.layers({'Street': street, 'Satellite': satellite}).addTo(map);
+
+  outline.addTo(map);
+
+  // Leaflet renders a *string* tooltip as HTML; field names are user-entered,
+  // so hand it an element whose text is set with textContent instead.
+  function textLabel(text) {
+    const el = document.createElement('span');
+    el.textContent = text;
+    return el;
+  }
+  L.geoJSON(JSON.parse(document.getElementById('fields-data').textContent), {
+    style: function(f) { return { color: f.properties.color, weight: 2, fillOpacity: 0.3 }; },
+    onEachFeature: function(f, layer) { layer.bindTooltip(textLabel(f.properties.name)); },
+  }).addTo(map);
+});
+</script>
+{% endblock %}

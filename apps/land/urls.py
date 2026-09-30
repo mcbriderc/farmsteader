@@ -18,4 +18,10 @@ urlpatterns = [
     path("fields/<int:pk>/sync-weather/", views.field_sync_weather, name="field_sync_weather"),
     path("fields/<int:pk>/sync-soil/", views.field_sync_soil, name="field_sync_soil"),
     path("fields/sync-all/", views.sync_all_fields, name="sync_all_fields"),
+    path("parcels/", views.parcel_list, name="parcel_list"),
+    path("parcels/geojson/", views.parcel_geojson, name="parcel_geojson"),
+    path("parcels/create/", views.parcel_create, name="parcel_create"),
+    path("parcels/<int:pk>/", views.parcel_detail, name="parcel_detail"),
+    path("parcels/<int:pk>/edit/", views.parcel_edit, name="parcel_edit"),
+    path("parcels/<int:pk>/delete/", views.parcel_delete, name="parcel_delete"),
 ]

@@ -11,6 +11,9 @@
     <a href="{% url 'land:field_map' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
       Map View
     </a>
+    <a href="{% url 'land:parcel_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Property Boundaries
+    </a>
     {% if fields %}
     <form method="post" action="{% url 'land:sync_all_fields' %}">
       {% csrf_token %}

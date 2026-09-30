@@ -1,0 +1,23 @@
+{% comment %}
+  The draw-a-polygon panel shared by the field and property forms. Pair it with
+  land/_boundary_editor_js.html in the page's extra_js block.
+  Params: heading, help.
+{% endcomment %}
+<div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 mb-4">
+  <h2 class="font-semibold text-gray-900 mb-4">{{ heading }}</h2>
+  <p class="text-sm text-gray-500 mb-3">{{ help }}</p>
+
+  <div class="flex gap-2 mb-3">
+    <input type="text" id="address-search" placeholder="Search by address or place name..."
+           class="flex-1 rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border">
+    <button type="button" id="address-search-btn" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">Go</button>
+  </div>
+  <div id="search-error" class="text-sm text-red-600 mb-2" style="display:none;"></div>
+
+  <div id="map" class="w-full rounded-lg border border-gray-200" style="height: 50vh;"></div>
+  <div id="reference-note" class="mt-2 text-xs text-gray-500" style="display:none;"></div>
+  <div id="acreage-preview" class="mt-3 text-sm font-medium text-farm-700" style="display:none;">
+    Estimated area: <span id="acreage-value"></span> acres
+  </div>
+  {{ form.boundary_geojson }}
+</div>

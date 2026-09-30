@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Property Boundaries — FarmSteader{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-bold text-gray-900">Property Boundaries</h1>
+    <p class="text-gray-500 text-sm mt-1">
+      {{ parcels|length }} propert{{ parcels|length|pluralize:"y,ies" }}{% if parcels %} &middot; {{ total_acreage }} acres total{% endif %}
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'land:field_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Fields
+    </a>
+    <a href="{% url 'land:field_map' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
+      Map View
+    </a>
+    <a href="{% url 'land:parcel_create' %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-4 rounded-lg text-sm transition">
+      + Add Property
+    </a>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+  {% for parcel in parcels %}
+  <a href="{% url 'land:parcel_detail' parcel.pk %}" class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md transition block">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-4 h-4 rounded-sm border-2 border-dashed" style="border-color: {{ parcel.color }}"></div>
+      <h2 class="font-semibold text-gray-900">{{ parcel.name }}</h2>
+    </div>
+    <div class="grid grid-cols-2 gap-2 text-sm">
+      <div>
+        <span class="text-gray-500">Acreage</span>
+        <p class="font-medium text-gray-900">{{ parcel.acreage }} ac</p>
+      </div>
+      <div>
+        <span class="text-gray-500">Parcel Number</span>
+        <p class="font-medium text-gray-900">{{ parcel.parcel_number|default:"—" }}</p>
+      </div>
+    </div>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-12 text-gray-500">
+    <p class="text-lg">No property boundaries yet.</p>
+    <p class="text-sm mt-1">Trace your property lines to see total acreage and how much of it your fields cover.</p>
+    <a href="{% url 'land:parcel_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Draw your first property line</a>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

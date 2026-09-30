@@ -67,7 +67,7 @@ def _collect_error_messages(result):
 @require_GET
 def data_io_index(request):
     groups = {
-        "Land": ["fields", "soil_samples", "crop_records"],
+        "Land": ["fields", "parcels", "soil_samples", "crop_records"],
         "Livestock": ["animals", "vet_records", "field_movements"],
         "Crops": ["crop_types", "market_prices", "harvest_records"],
         "Equipment": ["equipment", "maintenance_records"],

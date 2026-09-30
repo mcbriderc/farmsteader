@@ -1,6 +1,6 @@
 from django.contrib.gis import admin
 
-from .models import CropRecord, Field, SoilSample, WeatherCache
+from .models import CropRecord, Field, Parcel, SoilSample, WeatherCache
 
 
 @admin.register(Field)
@@ -8,6 +8,14 @@ class FieldAdmin(admin.GISModelAdmin):
     list_display = ["name", "farm", "acreage", "soil_type"]
     list_filter = ["farm"]
     readonly_fields = ["acreage", "centroid_lat", "centroid_lon"]
+
+
+@admin.register(Parcel)
+class ParcelAdmin(admin.GISModelAdmin):
+    list_display = ["name", "farm", "acreage", "parcel_number"]
+    list_filter = ["farm"]
+    search_fields = ["name", "parcel_number"]
+    readonly_fields = ["acreage"]
 
 
 @admin.register(WeatherCache)

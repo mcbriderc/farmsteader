@@ -9,7 +9,7 @@ from apps.consumables.models import ConsumableType, InventoryItem, InventoryTran
 from apps.crops.models import CropType, HarvestRecord
 from apps.employment.models import Employee, Task, TimeEntry
 from apps.equipment.models import Equipment, MaintenanceRecord
-from apps.land.models import CropRecord, Field, SoilSample
+from apps.land.models import CropRecord, Field, Parcel, SoilSample
 from apps.livestock.models import Animal, FeedLog, FeedStock, FeedType, VetRecord
 from apps.produce.models import ProduceItem, ProduceTransaction
 
@@ -54,6 +54,16 @@ class FieldFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f"Field {n}")
     boundary = _POLYGON
     color = "#22c55e"
+
+
+class ParcelFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Parcel
+
+    farm = factory.SubFactory(FarmFactory)
+    name = factory.Sequence(lambda n: f"Parcel {n}")
+    boundary = _POLYGON
+    color = "#f59e0b"
 
 
 class AnimalFactory(factory.django.DjangoModelFactory):

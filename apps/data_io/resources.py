@@ -9,7 +9,7 @@ from apps.crops.models import CropType, HarvestRecord, MarketPrice
 from apps.employment.models import Employee, Task, TimeEntry
 from apps.equipment.models import Equipment, MaintenanceRecord
 from apps.produce.models import ProduceItem, ProduceTransaction
-from apps.land.models import CropRecord, Field, SoilSample
+from apps.land.models import CropRecord, Field, Parcel, SoilSample
 from apps.livestock.models import Animal, FeedLog, FeedStock, FeedType, FieldMovement, VetRecord
 
 
@@ -525,6 +525,19 @@ class ProduceTransactionResource(FarmScopedModelResource):
         export_order = fields
 
 
+class ParcelResource(FarmScopedModelResource):
+    boundary = fields.Field(
+        column_name="boundary", attribute="boundary", widget=GeometryWidget(),
+    )
+
+    class Meta:
+        model = Parcel
+        # acreage is editable=False, so import-export skips it on import and
+        # Parcel.save() recomputes it from the boundary.
+        fields = ("id", "name", "boundary", "acreage", "parcel_number", "color", "notes")
+        export_order = fields
+
+
 # ---------------------------------------------------------------------------
 # Registry — used by views to look up resources by key
 # ---------------------------------------------------------------------------
@@ -532,6 +545,7 @@ class ProduceTransactionResource(FarmScopedModelResource):
 RESOURCE_REGISTRY = {
     # Land
     "fields": ("Fields", FieldResource, Field),
+    "parcels": ("Property Boundaries", ParcelResource, Parcel),
     "soil_samples": ("Soil Samples", SoilSampleResource, SoilSample),
     "crop_records": ("Crop Records", CropRecordResource, CropRecord),
     # Livestock
