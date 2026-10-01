@@ -32,5 +32,5 @@ class SoilSampleAdmin(admin.ModelAdmin):
 
 @admin.register(CropRecord)
 class CropRecordAdmin(admin.ModelAdmin):
-    list_display = ["field", "crop_name", "season", "status", "cost"]
-    list_filter = ["farm", "status", "season"]
+    list_display = ["field", "crop_type", "variety", "season", "status", "cost"]
+    list_filter = ["farm", "status", "season", "crop_type"]

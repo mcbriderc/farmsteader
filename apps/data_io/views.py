@@ -56,10 +56,23 @@ def _build_resource(resource_class, resource_key, farm):
 
 
 def _collect_error_messages(result):
+    """Row errors *and* validation failures, as one list for the page.
+
+    import-export keeps them apart: an exception (a failed lookup) is a row
+    error, while a widget or model rejecting a value is an invalid row. Only
+    the first used to be shown, so a row with, say, a malformed boundary was
+    skipped in silence and the success message counted around it.
+    """
     msgs = []
     for row_num, errors in result.row_errors():
         for error in errors:
             msgs.append(f"Row {row_num}: {error.error}")
+    for invalid in result.invalid_rows:
+        for field, field_errors in invalid.field_specific_errors.items():
+            for message in field_errors:
+                msgs.append(f"Row {invalid.number}: {field}: {message}")
+        for message in invalid.non_field_specific_errors:
+            msgs.append(f"Row {invalid.number}: {message}")
     return msgs[:20]
 
 
@@ -151,7 +164,7 @@ def data_import(request, resource_key):
     resource = _build_resource(resource_class, resource_key, request.farm)
     result = resource.import_data(dataset, dry_run=True)
 
-    if result.has_errors():
+    if result.has_errors() or result.has_validation_errors():
         return render(request, IMPORT_TEMPLATE, {
             "label": label,
             "resource_key": resource_key,

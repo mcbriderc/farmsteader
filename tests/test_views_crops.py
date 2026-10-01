@@ -100,9 +100,10 @@ class TestCropRecordListView:
 
     def test_search_matches_crop_and_variety(self, farm_client, farm):
         field = FieldFactory(farm=farm)
-        beans = CropRecordFactory(farm=farm, field=field, crop_name="Soybeans")
-        variety = CropRecordFactory(farm=farm, field=field, crop_name="Corn", variety="Soybean Mix")
-        CropRecordFactory(farm=farm, field=field, crop_name="Oats", variety="")
+        beans = CropRecordFactory(farm=farm, field=field, crop_type=CropTypeFactory(name="Test Soybeans"))
+        variety = CropRecordFactory(farm=farm, field=field, crop_type=CropTypeFactory(name="Test Corn"),
+                                    variety="Soybean Mix")
+        CropRecordFactory(farm=farm, field=field, crop_type=CropTypeFactory(name="Test Oats"), variety="")
         pks = [r.pk for r in farm_client.get("/crops/records/?q=soybean").context["records"]]
         assert set(pks) == {beans.pk, variety.pk}
 

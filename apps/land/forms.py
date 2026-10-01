@@ -68,13 +68,17 @@ class ParcelForm(BoundaryFormMixin, forms.ModelForm):
 
 
 class CropRecordForm(forms.ModelForm):
+    """A planting. What it yielded is recorded as harvests, not here."""
+
     class Meta:
         model = CropRecord
-        fields = ["crop_name", "variety", "season", "status", "planted_date", "harvest_date",
-                   "yield_amount", "yield_unit", "cost", "notes"]
+        fields = ["crop_type", "variety", "season", "status", "planted_date", "cost", "notes"]
+        labels = {"crop_type": "Crop"}
+        help_texts = {
+            "variety": "Optional, e.g. a seed variety or hybrid",
+        }
         widgets = {
             "planted_date": forms.DateInput(attrs={"type": "date", "class": _INPUT_CLASSES}),
-            "harvest_date": forms.DateInput(attrs={"type": "date", "class": _INPUT_CLASSES}),
         }
 
     def __init__(self, *args, **kwargs):

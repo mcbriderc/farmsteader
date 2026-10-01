@@ -66,8 +66,9 @@ def populate(farm):
     )
 
     SoilSampleFactory(farm=farm, field=field, ph=6.4)
-    CropRecordFactory(farm=farm, field=field, crop_name="Corn", season="2026-Spring")
-    HarvestRecordFactory(farm=farm, field=field, crop_type=CropTypeFactory(name="Backup Corn"))
+    backup_corn = CropTypeFactory(name="Backup Corn")
+    planting = CropRecordFactory(farm=farm, field=field, crop_type=backup_corn, season="2026-Spring")
+    HarvestRecordFactory(farm=farm, field=field, crop_type=backup_corn, planting=planting)
 
     stock = FeedStockFactory(farm=farm, feed_type=FeedTypeFactory(name="Backup Alfalfa"))
     FeedLogFactory(farm=farm, animal=calf, feed_stock=stock, quantity=Decimal("25.00"))
@@ -574,7 +575,7 @@ class TestManifest:
         manifest = export_farm(farm, archive)
 
         assert manifest["format"] == "farmsteader-backup"
-        assert manifest["format_version"] == 1
+        assert manifest["format_version"] == 2  # 2: plantings link to the crop catalog (0.6.0)
         assert manifest["farm"]["name"] == farm.name
         assert manifest["counts"]["land.Field"] == 2
         assert "boundary" in manifest["schema"]["land.Field"]

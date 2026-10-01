@@ -161,8 +161,10 @@ class TestCrossFarmIsolation:
 
     def test_foreign_key_lookup_does_not_cross_farms(self, farm_client, farm, other_farm):
         FieldFactory(farm=other_farm, name="North Pasture")
+        # A real catalog crop, so the only thing wrong with the row is the field.
+        # (The legacy crop_name header, as written by 0.5.0 exports, still reads.)
         csv_content = (
-            "field_name,crop_name,season,status\nNorth Pasture,Corn,2026-Spring,planned\n"
+            "field_name,crop_name,season,status\nNorth Pasture,Soybeans,2026-Spring,planned\n"
         )
         resp = farm_client.post(
             "/data/import/crop_records/", {"file": csv_file(csv_content), "confirm": "1"}

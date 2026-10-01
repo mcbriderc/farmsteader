@@ -187,7 +187,7 @@
         <tbody class="divide-y divide-gray-100">
           {% for cr in crop_records %}
           <tr class="hover:bg-gray-50">
-            <td class="px-4 py-2 font-medium text-gray-900">{{ cr.crop_name }}{% if cr.variety %} <span class="text-gray-400">({{ cr.variety }})</span>{% endif %}</td>
+            <td class="px-4 py-2 font-medium text-gray-900">{{ cr.crop_type.name }}{% if cr.variety %} <span class="text-gray-400">({{ cr.variety }})</span>{% endif %}</td>
             <td class="px-4 py-2">{{ cr.season }}</td>
             <td class="px-4 py-2">
               <span class="text-xs font-medium px-2 py-1 rounded-full
@@ -198,9 +198,11 @@
                 {{ cr.get_status_display }}
               </span>
             </td>
-            <td class="px-4 py-2 text-right">{% if cr.yield_amount %}{{ cr.yield_amount }} {{ cr.yield_unit }}{% else %}—{% endif %}</td>
+            <td class="px-4 py-2 text-right">{% include "crops/_planting_yield.html" %}</td>
             <td class="px-4 py-2 text-right">${{ cr.cost }}</td>
             <td class="px-4 py-2 text-right">
+              <a href="{% url 'crops:harvest_create' %}?planting={{ cr.pk }}" class="text-farm-600 hover:text-farm-700 text-xs whitespace-nowrap">Record harvest</a>
+              <span class="text-gray-300 mx-1">|</span>
               <a href="{% url 'land:crop_record_edit' field.pk cr.pk %}" class="text-farm-600 hover:text-farm-700 text-xs">Edit</a>
             </td>
           </tr>

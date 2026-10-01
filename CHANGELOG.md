@@ -13,6 +13,43 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-09-30
+
+### Added
+
+- **Plantings and harvests are linked.** A planting now picks its crop from the
+  crop catalog (with an optional variety), and a harvest can name the planting
+  it came from -- several harvests per planting for crops cut or picked more
+  than once. A planting's yield is the total of its harvests, shown on the Crop
+  Records page, the field's Crops tab and the crop type's page, which now lists
+  your plantings of that crop alongside its harvests. A **Record harvest**
+  action on each planting opens the harvest form already filled in. A harvest
+  linked to a planting must be on the same field and of the same crop.
+
+### Changed
+
+- Upgrading converts existing data automatically: planting crop names are
+  matched to the catalog ignoring case and spacing, names with no match are
+  added to the catalog (nothing is guessed or lost), any yield recorded on a
+  planting becomes a harvest of that planting, and existing harvests are linked
+  to a planting only when exactly one planting fits. Backups and CSV files made
+  by earlier versions are converted the same way when restored or imported.
+- Whole-farm backups use archive format 2. Older backups still restore; a
+  backup made by this version is refused by older releases with a message to
+  upgrade first, instead of restoring incompletely.
+- CSV/XLSX import of plantings references crops by catalog name, and harvests
+  reference their planting as "Field | Crop | Season".
+
+### Fixed
+
+- Deleting a crop type from the catalog silently deleted every harvest of that
+  crop on every farm. A crop type in use by any planting or harvest can no
+  longer be deleted, and the page says where it is used.
+- Imported rows rejected by validation (an unknown crop, a malformed boundary)
+  were skipped without a word while the import reported success. Every
+  rejected row is now listed with its reason, and nothing is imported until
+  the file is clean.
+
 ## [0.5.0] - 2026-09-30
 
 ### Added
@@ -176,8 +213,9 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.6.0...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
 [0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0
 [0.5.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.5.0
+[0.6.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.6.0

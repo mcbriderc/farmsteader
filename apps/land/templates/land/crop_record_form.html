@@ -22,8 +22,15 @@
       <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</label>
       {{ field }}
       {% if field.help_text %}<p class="text-xs text-gray-400 mt-1">{{ field.help_text }}</p>{% endif %}
+      {% if field.name == "crop_type" %}
+      <p class="text-xs text-gray-400 mt-1">Not listed? <a href="{% url 'crops:crop_type_create' %}" class="text-farm-600 hover:text-farm-700">Add it to the crop catalog</a>.</p>
+      {% endif %}
     </div>
     {% endfor %}
+
+    <p class="text-xs text-gray-500">What this planting yields is recorded as harvests: use
+      <strong>Record harvest</strong> on the planting once it has been saved. Its yield is the
+      total of those harvests, so several cuttings or pickings add up on their own.</p>
 
     <div class="flex gap-3 pt-2">
       <button type="submit" class="bg-accent hover:bg-accent-hover text-white font-medium py-2 px-6 rounded-lg transition">

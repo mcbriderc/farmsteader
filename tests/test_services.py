@@ -135,6 +135,8 @@ class TestInjectFarmColumn:
 class TestCollectErrorMessages:
     def test_returns_empty_list_when_no_errors(self):
         class FakeResult:
+            invalid_rows = []
+
             def row_errors(self):
                 return []
 
@@ -145,6 +147,8 @@ class TestCollectErrorMessages:
             error = "invalid value"
 
         class FakeResult:
+            invalid_rows = []
+
             def row_errors(self):
                 return [(2, [FakeError()])]
 
@@ -158,8 +162,27 @@ class TestCollectErrorMessages:
             error = "bad"
 
         class FakeResult:
+            invalid_rows = []
+
             def row_errors(self):
                 return [(i, [FakeError()]) for i in range(1, 30)]
 
         msgs = _collect_error_messages(FakeResult())
         assert len(msgs) == 20
+
+    def test_reports_invalid_rows_too(self):
+        """Widget/model validation failures used to be skipped without a word."""
+
+        class FakeInvalid:
+            number = 3
+            field_specific_errors = {"crop_type": ['Unknown crop "Dragonfruit".']}
+            non_field_specific_errors = ["Planting is on another field."]
+
+        class FakeResult:
+            invalid_rows = [FakeInvalid()]
+
+            def row_errors(self):
+                return []
+
+        msgs = _collect_error_messages(FakeResult())
+        assert msgs == ['Row 3: crop_type: Unknown crop "Dragonfruit".', "Row 3: Planting is on another field."]

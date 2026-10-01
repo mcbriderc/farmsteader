@@ -35,6 +35,18 @@ class FarmScopedModelResource(resources.ModelResource):
         qs = super().get_queryset()
         return qs.filter(farm=self.farm) if self.farm is not None else qs.none()
 
+    def validate_instance(self, instance, *args, **kwargs):
+        """Stamp the farm on *before* validating.
+
+        before_save_instance runs after validation, so a resource with
+        ``clean_model_instances = True`` would otherwise fail every row on
+        ``farm: This field cannot be null`` -- and any model clean() that checks
+        the farm would be checking nothing.
+        """
+        if self.farm is not None:
+            instance.farm = self.farm
+        return super().validate_instance(instance, *args, **kwargs)
+
     def before_save_instance(self, instance, row, **kwargs):
         """Stamp the importing farm on, and discard any primary key from another farm.
 
@@ -86,6 +98,68 @@ class EmployeeNameWidget(FarmScopedForeignKeyWidget):
         if first:
             qs = qs.filter(first_name=first)
         return qs.first()
+
+
+class CropTypeByNameWidget(ForeignKeyWidget):
+    """A catalog crop, matched by name ignoring case.
+
+    Unknown names are an error, not a new catalog entry: the catalog is shared
+    by every farm on the install, so a spreadsheet should not be able to grow
+    it. Add the crop under Crops > Crop Types first.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(CropType, field="name", **kwargs)
+
+    def clean(self, value, row=None, **kwargs):
+        name = " ".join(str(value or "").split())
+        if not name:
+            return None
+        match = CropType.objects.filter(name__iexact=name).first()
+        if match is None:
+            raise ValueError(f'Unknown crop "{name}". Add it under Crops > Crop Types first.')
+        return match
+
+
+class PlantingWidget(ForeignKeyWidget):
+    """A planting, written as "Field | Crop | Season" (plus " | Variety" if set).
+
+    A database id means nothing in a spreadsheet and changes on every restore,
+    so plantings are referenced by what identifies them to a person. On import
+    the reference must match exactly one of the importing farm's plantings.
+    """
+
+    SEP = " | "
+
+    def __init__(self, **kwargs):
+        super().__init__(CropRecord, **kwargs)
+
+    def render(self, value, obj=None, **kwargs):
+        if value is None:
+            return ""
+        parts = [value.field.name, value.crop_type.name, value.season]
+        if value.variety:
+            parts.append(value.variety)
+        return self.SEP.join(parts)
+
+    def clean(self, value, row=None, **kwargs):
+        text = str(value or "").strip()
+        if not text:
+            return None
+        parts = [p.strip() for p in text.split("|")]
+        if len(parts) not in (3, 4):
+            raise ValueError(f'Planting "{text}" should read "Field | Crop | Season" (optionally "| Variety").')
+        qs = CropRecord.objects.filter(
+            farm_id=(row or {}).get("farm"), field__name=parts[0],
+            crop_type__name__iexact=parts[1], season=parts[2],
+        )
+        if len(parts) == 4:
+            qs = qs.filter(variety=parts[3])
+        matches = list(qs[:2])
+        if len(matches) != 1:
+            problem = "No" if not matches else "More than one"
+            raise ValueError(f'{problem} planting matches "{text}".')
+        return matches[0]
 
 
 class GeometryWidget(Widget):
@@ -144,20 +218,62 @@ class SoilSampleResource(FarmScopedModelResource):
 
 
 class CropRecordResource(FarmScopedModelResource):
+    """Plantings. Also reads files exported by 0.5.0 and earlier, whose rows have
+    a free-text ``crop_name`` and yield columns: the name is taken as the crop,
+    and any yield becomes a harvest linked to the planting -- the same
+    conversion the upgrade migration made to the database.
+    """
+
     field_name = fields.Field(
         column_name="field_name",
         attribute="field",
         widget=FarmScopedForeignKeyWidget(Field, field="name"),
     )
+    crop_type = fields.Field(
+        column_name="crop_type",
+        attribute="crop_type",
+        widget=CropTypeByNameWidget(),
+    )
 
     class Meta:
         model = CropRecord
         fields = (
-            "id", "field_name", "crop_name", "variety", "season", "status",
-            "planted_date", "harvest_date", "yield_amount", "yield_unit",
-            "cost", "notes",
+            "id", "field_name", "crop_type", "variety", "season", "status",
+            "planted_date", "cost", "notes",
         )
         export_order = fields
+
+    def before_import_row(self, row, **kwargs):
+        super().before_import_row(row, **kwargs)
+        if not row.get("crop_type") and row.get("crop_name"):
+            row["crop_type"] = row["crop_name"]
+
+    def after_save_instance(self, instance, row, **kwargs):
+        super().after_save_instance(instance, row, **kwargs)
+        amount = row.get("yield_amount")
+        if amount in (None, ""):
+            return
+        from django.utils.dateparse import parse_date
+
+        from apps.data_io.backup import MOVED_YIELD_NOTE
+
+        raw = row.get("harvest_date")
+        if hasattr(raw, "date"):
+            raw = raw.date()
+        harvest_date = raw if hasattr(raw, "year") else parse_date(str(raw or "")[:10])
+        note = MOVED_YIELD_NOTE
+        if harvest_date is None:
+            harvest_date = instance.updated_at.date()
+            note += " It had no harvest date, so the date it was imported was used."
+        # Re-importing the same old file must not add the same harvest twice.
+        if instance.harvests.filter(notes__startswith=MOVED_YIELD_NOTE).exists():
+            return
+        HarvestRecord.objects.create(
+            farm=instance.farm, field=instance.field, crop_type=instance.crop_type,
+            planting=instance, harvest_date=harvest_date, yield_amount=amount,
+            yield_unit=row.get("yield_unit") or instance.crop_type.default_unit or "bushels",
+            notes=note,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -322,13 +438,21 @@ class HarvestRecordResource(FarmScopedModelResource):
     crop_type_name = fields.Field(
         column_name="crop_type",
         attribute="crop_type",
-        widget=ForeignKeyWidget(CropType, field="name"),
+        widget=CropTypeByNameWidget(),
+    )
+    planting = fields.Field(
+        column_name="planting",
+        attribute="planting",
+        widget=PlantingWidget(),
     )
 
     class Meta:
         model = HarvestRecord
+        # Runs HarvestRecord.clean(), so an imported harvest cannot claim a
+        # planting on a different field or of a different crop.
+        clean_model_instances = True
         fields = (
-            "id", "field_name", "crop_type_name", "harvest_date",
+            "id", "field_name", "crop_type_name", "planting", "harvest_date",
             "yield_amount", "yield_unit", "moisture_pct", "quality_grade",
             "cost", "revenue", "notes",
         )

@@ -36,7 +36,16 @@ from apps.livestock.models import Animal, FeedLog, FeedStock, FeedType, FieldMov
 from apps.produce.models import ProduceItem, ProduceTransaction
 
 FORMAT = "farmsteader-backup"
-FORMAT_VERSION = 1
+#: Bump whenever the archived data changes shape, and teach _upgrade_archive to
+#: bring older archives forward -- restoring a backup made by an earlier release
+#: is the whole point of having one.
+#:   1 -- original format (<= 0.5.0)
+#:   2 -- plantings link to the crop catalog; their yields live on harvests (0.6.0)
+FORMAT_VERSION = 2
+
+#: Written on harvests created from a planting's old yield fields. Same text as
+#: the crops 0005 migration uses for the same conversion.
+MOVED_YIELD_NOTE = "Moved from the planting record when plantings and harvests were linked."
 
 MANIFEST_NAME = "manifest.json"
 DATA_NAME = "data.json"
@@ -86,7 +95,7 @@ MODEL_SPECS = (
     ModelSpec(Parcel),
     ModelSpec(Animal, deferred=("current_field", "sire", "dam")),
     ModelSpec(SoilSample),
-    ModelSpec(CropRecord),
+    ModelSpec(CropRecord, natural_fks={"crop_type": CropType}),
     ModelSpec(HarvestRecord, natural_fks={"crop_type": CropType}),
     ModelSpec(VetRecord),
     ModelSpec(FieldMovement),
@@ -326,6 +335,90 @@ def _read_data(zf, manifest, errors):
     except ValueError as exc:  # JSONDecodeError and UnicodeDecodeError both derive from it
         errors.append(f"data.json is not valid JSON: {exc}")
         return None
+
+
+def _upgrade_archive(manifest, data, warnings):
+    """Bring an archive from an older format up to FORMAT_VERSION, in memory.
+
+    Runs before the schema check, so an old backup reads exactly as if the
+    current release had written it.
+    """
+    if manifest.get("format_version", FORMAT_VERSION) < 2:
+        _upgrade_v1_to_v2(manifest, data, warnings)
+
+
+def _upgrade_v1_to_v2(manifest, data, warnings):
+    """Plantings gained a crop_type link and lost their own yield fields.
+
+    Applies the same rules as the land 0005 / crops 0005 migrations do to a
+    live database: names match the catalog ignoring case and spacing, unmatched
+    names become catalog entries (first spelling wins), a planting's yield
+    becomes a harvest of that planting, and a harvest is linked to a planting
+    only when exactly one fits.
+    """
+    cr_label, hr_label = CropRecord._meta.label, HarvestRecord._meta.label
+    ct_label = CropType._meta.label
+    plantings = sorted(data.get(cr_label) or [], key=lambda r: r.get("id") or 0)
+    harvests = data.setdefault(hr_label, [])
+    archive_catalog = data.setdefault("catalogs", {}).setdefault(ct_label, [])
+
+    # Name -> canonical spelling: this install's catalog first, then the archive's.
+    known = {name.lower(): name for name in CropType.objects.values_list("name", flat=True)}
+    defaults = dict(CropType.objects.values_list("name", "default_unit"))
+    for entry in archive_catalog:
+        known.setdefault(entry["name"].lower(), entry["name"])
+        defaults.setdefault(entry["name"], entry.get("default_unit") or "bushels")
+
+    added, moved, linked = 0, 0, 0
+    next_id = max((h.get("id") or 0 for h in harvests), default=0) + 1
+    for row in plantings:
+        name = " ".join((row.pop("crop_name", "") or "").split()) or "Unnamed crop"
+        canonical = known.get(name.lower())
+        if canonical is None:
+            canonical = known[name.lower()] = name
+            archive_catalog.append({"name": name})
+            added += 1
+        row["crop_type"] = canonical
+
+        harvest_date = row.pop("harvest_date", None)
+        amount = row.pop("yield_amount", None)
+        unit = row.pop("yield_unit", None)
+        if amount is None:
+            continue
+        note = MOVED_YIELD_NOTE
+        if not harvest_date:
+            harvest_date = (row.get("updated_at") or "")[:10] or None
+            note += " It had no harvest date, so the date it was last edited was used."
+        harvests.append({
+            "id": next_id, "field": row.get("field"), "crop_type": canonical,
+            "planting": row.get("id"), "harvest_date": harvest_date, "yield_amount": amount,
+            "yield_unit": unit or defaults.get(canonical) or "bushels", "notes": note,
+        })
+        next_id += 1
+        moved += 1
+
+    for h in harvests:
+        if h.get("planting") is not None:
+            continue
+        fits = [p for p in plantings
+                if p.get("field") == h.get("field") and p.get("crop_type") == h.get("crop_type")
+                and (not p.get("planted_date") or p["planted_date"] <= (h.get("harvest_date") or ""))]
+        h["planting"] = fits[0].get("id") if len(fits) == 1 else None
+        linked += len(fits) == 1
+
+    schema = manifest.setdefault("schema", {})
+    if cr_label in schema:
+        old = [n for n in schema[cr_label] if n not in {"crop_name", "harvest_date", "yield_amount", "yield_unit"}]
+        schema[cr_label] = old + ["crop_type"]
+    if hr_label in schema and "planting" not in schema[hr_label]:
+        schema[hr_label] = schema[hr_label] + ["planting"]
+
+    if plantings or harvests:
+        warnings.append(
+            f"Backup from an older FarmSteader, upgraded on restore: {len(plantings)} planting(s) "
+            f"linked to the crop catalog ({added} new crop type(s) added), {moved} planting "
+            f"yield(s) moved into harvests, {linked} harvest(s) linked to their planting."
+        )
 
 
 def _reconcile_schema(schema, errors, warnings):
@@ -593,6 +686,7 @@ def restore_farm(archive_path, user, farm_name=None, allow_dropped_fields=False)
         if data is None:
             raise RestoreError(errors)
 
+        _upgrade_archive(manifest, data, warnings)
         dropped = _reconcile_schema(manifest.get("schema") or {}, errors, warnings)
         _validate_references(data, errors, warnings)
         if dropped and not allow_dropped_fields:

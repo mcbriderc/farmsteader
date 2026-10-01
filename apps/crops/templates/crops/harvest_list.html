@@ -20,6 +20,7 @@
           <th class="px-4 py-3 text-left">Date</th>
           <th class="px-4 py-3 text-left">Crop</th>
           <th class="px-4 py-3 text-left">Field</th>
+          <th class="px-4 py-3 text-left">Planting</th>
           <th class="px-4 py-3 text-right">Yield</th>
           <th class="px-4 py-3 text-right">Revenue</th>
           <th class="px-4 py-3 text-right">Cost</th>
@@ -32,6 +33,7 @@
           <td class="px-4 py-3 font-medium text-gray-900">{{ h.harvest_date }}</td>
           <td class="px-4 py-3">{{ h.crop_type.name }}</td>
           <td class="px-4 py-3">{{ h.field.name }}</td>
+          <td class="px-4 py-3">{% if h.planting %}{{ h.planting.season }}{% if h.planting.variety %} <span class="text-gray-400">({{ h.planting.variety }})</span>{% endif %}{% else %}<span class="text-gray-400">—</span>{% endif %}</td>
           <td class="px-4 py-3 text-right">{{ h.yield_amount }} {{ h.yield_unit }}</td>
           <td class="px-4 py-3 text-right text-green-700">{% if h.revenue %}${{ h.revenue }}{% else %}—{% endif %}</td>
           <td class="px-4 py-3 text-right">${{ h.cost }}</td>

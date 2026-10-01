@@ -173,6 +173,15 @@ class SoilSample(FarmOwnedModel, NotesMixin):
 
 
 class CropRecord(FarmOwnedModel, NotesMixin, CostMixin):
+    """A planting: one crop on one field for one season.
+
+    The crop comes from the shared CropType catalog, so the "Soybeans" on a field
+    is the same Soybeans that harvests, market prices and the catalog page refer
+    to. What came *off* the planting is recorded as crops.HarvestRecord rows
+    pointing back here (`self.harvests`) -- possibly several, e.g. hay cuttings.
+    The planting itself carries no yield; yield_totals() sums its harvests.
+    """
+
     class Status(models.TextChoices):
         PLANNED = "planned", "Planned"
         SEEDED = "seeded", "Seeded"
@@ -182,19 +191,38 @@ class CropRecord(FarmOwnedModel, NotesMixin, CostMixin):
         FAILED = "failed", "Failed"
 
     field = models.ForeignKey(Field, on_delete=models.CASCADE, related_name="crop_records")
-    crop_name = models.CharField(max_length=100)
+    # PROTECT: the catalog is shared by every farm on an install, so deleting a
+    # crop type must never take plantings with it.
+    crop_type = models.ForeignKey("crops.CropType", on_delete=models.PROTECT, related_name="plantings")
     variety = models.CharField(max_length=100, blank=True)
     season = models.CharField(max_length=20, help_text="e.g. 2026-Spring")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PLANNED)
 
     planted_date = models.DateField(null=True, blank=True)
-    harvest_date = models.DateField(null=True, blank=True)
-    yield_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    yield_unit = models.CharField(max_length=20, blank=True, default="bushels")
 
     class Meta:
         db_table = "crop_record"
-        ordering = ["-season", "crop_name"]
+        ordering = ["-season", "crop_type__name"]
 
     def __str__(self):
-        return f"{self.crop_name} — {self.field.name} ({self.season})"
+        return f"{self.crop_label} — {self.field.name} ({self.season})"
+
+    @property
+    def crop_label(self):
+        """"Soybeans (Pioneer P1197)" -- crop plus variety when there is one."""
+        return f"{self.crop_type.name} ({self.variety})" if self.variety else self.crop_type.name
+
+    def yield_totals(self):
+        """Harvested yield, summed per unit: ``[("bushels", Decimal("1200.00")), ...]``.
+
+        Per unit because harvests of one planting can be recorded in different
+        units (bales from one cutting, tons from the next), and adding those
+        together would be meaningless.
+
+        Summed in Python over ``self.harvests.all()`` so that list pages, which
+        prefetch harvests, cost no query per planting.
+        """
+        totals = {}
+        for h in self.harvests.all():
+            totals[h.yield_unit] = totals.get(h.yield_unit, 0) + h.yield_amount
+        return sorted(totals.items())

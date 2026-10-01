@@ -39,6 +39,35 @@
     {% endif %}
   </div>
 
+  {# Your Plantings #}
+  <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+    <h2 class="font-semibold text-gray-900 mb-3">Your Plantings</h2>
+    {% if plantings %}
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
+        <tr>
+          <th class="px-3 py-2 text-left">Season</th>
+          <th class="px-3 py-2 text-left">Field</th>
+          <th class="px-3 py-2 text-left">Status</th>
+          <th class="px-3 py-2 text-right">Yield</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for cr in plantings %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 font-medium">{{ cr.season }}{% if cr.variety %} <span class="text-gray-400">({{ cr.variety }})</span>{% endif %}</td>
+          <td class="px-3 py-2"><a href="{% url 'land:field_detail' cr.field.pk %}" class="text-farm-600 hover:text-farm-700">{{ cr.field.name }}</a></td>
+          <td class="px-3 py-2">{{ cr.get_status_display }}</td>
+          <td class="px-3 py-2 text-right">{% include "crops/_planting_yield.html" %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="text-sm text-gray-500">No plantings of this crop yet.</p>
+    {% endif %}
+  </div>
+
   {# Your Harvests #}
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5">
     <h2 class="font-semibold text-gray-900 mb-3">Your Harvests</h2>

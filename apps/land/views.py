@@ -115,7 +115,7 @@ def field_detail(request, pk):
     weather_forecast = [w for w in weather_all if w.date > today]
     weather_history = [w for w in weather_all if w.date <= today]
     soil_samples = field.soil_samples.all()
-    crop_records = field.crop_records.all()
+    crop_records = field.crop_records.select_related("crop_type").prefetch_related("harvests")
 
     return render(request, "land/field_detail.html", {
         "field": field,

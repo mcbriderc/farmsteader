@@ -217,18 +217,46 @@ The detail page has tabs for veterinary records (immunizations, exams, treatment
 
 ### Crops (`/crops/`)
 
-Two-tier system: a global `CropType` catalog (with USDA NASS commodity codes) and farm-specific `HarvestRecord` entries. Harvest records track yield amount/unit, moisture percentage, quality grade, production cost, and revenue.
+Built around a global `CropType` catalog (with USDA NASS commodity codes),
+which both plantings and harvests point at, so "Soybeans" means the same thing
+on a field, in a harvest, on the catalog page and in market prices.
 
-**Crop Records** (`/crops/records/`) lists every planting on the farm across all
-fields — crop, field, season, status, planted date, yield and cost — filterable
-by season, status, and crop or variety name. A planting belongs to a field, so
-it is still created and edited from that field's Crops tab; this page is the
-read-only view across all of them. Note that plantings and harvests are separate
-records today and are not linked to each other: a `CropRecord` is what you
-seeded, a `HarvestRecord` is what you took off, and neither knows about the
-other.
+**Plantings and harvests are linked.** A planting (`CropRecord`, defined in the
+land app because it belongs to a field) is a crop from the catalog, an optional
+variety, a season, a status and a planted date. What came *off* it is recorded
+as one or more harvests (`HarvestRecord`) that point back to it -- several for
+crops cut or picked more than once, like hay. A planting's **yield is the total
+of its harvests**, summed per unit (bales and tons are never added together),
+and shown wherever plantings are listed. Each planting row has a **Record
+harvest** action that opens the harvest form with the planting, field, crop and
+the crop's usual unit already filled in.
 
-**Crop Type Management:** Crop types can be created, edited, and deleted directly from the UI at `/crops/types/`. A seed data migration pre-populates 19 common US crop types (grains, oilseeds, forages, vegetables, fiber, and pulses) with their USDA commodity codes, categories, and default units. Users can add custom crop types or remove unneeded ones.
+A harvest's planting is optional: perennial hay or pasture often has no planting
+record, and an unlinked harvest just names its field and crop. When a planting
+*is* chosen, the harvest's field and crop are taken from it and must agree with
+it; the form and CSV import both reject a harvest that claims a planting on a
+different field or of a different crop. Harvest records also track moisture,
+quality grade, cost and revenue.
+
+**Crop Records** (`/crops/records/`) lists every planting across all fields --
+crop, field, season, status, planted date, harvested yield and cost --
+filterable by season, status, and crop or variety name. Plantings are created
+and edited from their field's Crops tab. Each **crop type's page** shows that
+crop's plantings and harvests on your farm, which is how to see how a crop did
+across fields and seasons.
+
+**Upgrading from 0.5.0 or earlier**, where a planting's crop was free text and
+its yield was stored on the planting itself, is automatic: each planting's crop
+name is matched to the catalog ignoring case and spacing (no guessing --
+"Corn" is not assumed to mean "Corn (Grain)"), names with no match are added to
+the catalog so nothing is lost (rename or merge them afterwards under Crop
+Types), any yield recorded on a planting becomes a harvest of that planting, and
+existing harvests are linked to a planting only when exactly one planting fits
+(same field, same crop, planted on or before the harvest). Everything else stays
+unlinked for you to link from the harvest form. The same rules apply to backups
+and CSV files made by older versions.
+
+**Crop Type Management:** Crop types can be created, edited, and deleted directly from the UI at `/crops/types/`. A seed data migration pre-populates 19 common US crop types (grains, oilseeds, forages, vegetables, fiber, and pulses) with their USDA commodity codes, categories, and default units. Users can add custom crop types or remove unneeded ones. A crop type that any planting or harvest uses -- on *any* farm, since the catalog is shared by every farm on an install -- cannot be deleted; the page says how many plantings and harvests use it.
 
 A daily Celery task syncs market prices from the USDA NASS QuickStats API, storing price-per-unit by crop type, year, and state.
 
@@ -297,7 +325,7 @@ Export supports CSV and XLSX formats. Import performs a dry-run validation first
 | `Parcel` | `name`, `boundary` (PolygonField), `acreage` (auto-calc), `parcel_number` (county tax ID/APN, optional), `color` (hex, validated) -- methods: `fields_within()`, `field_coverage()` |
 | `WeatherCache` | `field`, `date`, `temp_max_c`, `temp_min_c`, `precipitation_mm`, `wind_speed_max_kmh`, `weather_code` |
 | `SoilSample` | `field`, `source` (manual/soilgrids/usda), `sample_date`, `depth_cm`, `ph`, `organic_carbon_pct`, `nitrogen_ppm`, `sand/silt/clay_pct`, `texture_class`, `cec` |
-| `CropRecord` | `field`, `crop_name`, `variety`, `season`, `status` (planned->harvested), `planted_date`, `harvest_date`, `yield_amount/unit`, `cost` |
+| `CropRecord` | `field`, `crop_type` (catalog, PROTECT), `variety`, `season`, `status` (planned->harvested), `planted_date`, `cost` -- reverse `harvests`; methods: `crop_label`, `yield_totals()` (per unit, from harvests) |
 
 ### Livestock
 
@@ -317,10 +345,12 @@ Export supports CSV and XLSX formats. Import performs a dry-run validation first
 | `CropType` | `name` (unique), `usda_code`, `category`, `default_unit` -- global, not farm-scoped |
 | `MarketPrice` | `crop_type`, `year`, `state`, `price_per_unit`, `unit`, `source` -- global |
 | `CommodityPrice` | `ticker` (e.g. `ZC=F`), `commodity`, `price`, `unit`, `change`, `change_pct`, `date` -- global CME futures, synced daily |
-| `HarvestRecord` | `field`, `crop_type`, `harvest_date`, `yield_amount/unit`, `moisture_pct`, `quality_grade`, `cost`, `revenue` |
+| `HarvestRecord` | `field`, `crop_type` (PROTECT), `planting` (optional `CropRecord`, SET_NULL; must agree with field and crop), `harvest_date`, `yield_amount/unit`, `moisture_pct`, `quality_grade`, `cost`, `revenue` |
 
 `CropRecord` -- the planting -- is defined in the **land** app (it hangs off a
-`Field`), and is listed at `/crops/records/`.
+`Field`), and is listed at `/crops/records/`. Both it and `HarvestRecord` point
+at the shared `CropType` catalog with `on_delete=PROTECT`, so a catalog entry in
+use cannot be deleted out from under any farm.
 
 ### Equipment
 
@@ -997,7 +1027,7 @@ The Django admin is available at `/admin/` and can be used for direct database a
 
 ## Import / Export
 
-The Data I/O module at `/data/` provides CSV and XLSX import/export for 25 data types organized by module. These are per-table spreadsheets for bulk editing. To copy a whole farm — for a reinstall or an upgrade — use [Backup & Restore](#backup--restore) instead, which also carries field boundaries, photos, and farm settings.
+The Data I/O module at `/data/` provides CSV and XLSX import/export for 25 data types organized by module. These are per-table spreadsheets for bulk editing. Crops are referenced by catalog name (matched ignoring case; an unknown crop is a row error -- add it under Crop Types first), and a harvest's planting by `Field | Crop | Season`, plus `| Variety` when the planting has one. Every rejected row is listed with its reason before anything is imported. Planting files exported by 0.5.0 and earlier, with a `crop_name` column and yields on the planting, still import. To copy a whole farm — for a reinstall or an upgrade — use [Backup & Restore](#backup--restore) instead, which also carries field boundaries, photos, and farm settings.
 
 | Module | Exportable Data Types |
 |---|---|
@@ -1048,7 +1078,7 @@ Geometry travels as GeoJSON text rather than binary WKB, so an archive moves bet
 
 Restoring **always creates a new farm** and makes you its owner; your current farm is never modified. Upload the archive at `/data/backup/`, confirm, and you are switched to the restored farm. Delete the old one manually once you have checked it over.
 
-The whole archive is validated before anything is written -- checksum, member paths (traversal and oversize archives are rejected), and a field-by-field comparison against this version's models. If the archive comes from a **newer** FarmSteader and holds fields this version lacks, the restore refuses until you tick *Discard unknown fields*. If it comes from an **older** one, missing optional fields take their defaults and a warning is recorded. Everything else runs in a single transaction, so a failed restore leaves no partial farm behind.
+The whole archive is validated before anything is written -- checksum, member paths (traversal and oversize archives are rejected), and a field-by-field comparison against this version's models. If the archive comes from a **newer** FarmSteader and holds fields this version lacks, the restore refuses until you tick *Discard unknown fields*. If it comes from an **older** one, missing optional fields take their defaults and a warning is recorded. Archives carry a format version; when the archived data changed shape between releases, older archives are upgraded on restore -- for example, a backup made by 0.5.0 or earlier has its plantings linked to the crop catalog and their yields turned into harvests, by the same rules as the database upgrade (see Crops). A backup made by a newer release than the one restoring it is refused with a message to upgrade first. Everything else runs in a single transaction, so a failed restore leaves no partial farm behind.
 
 ### What is not included
 

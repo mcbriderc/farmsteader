@@ -17,5 +17,5 @@ class MarketPriceAdmin(admin.ModelAdmin):
 
 @admin.register(HarvestRecord)
 class HarvestRecordAdmin(admin.ModelAdmin):
-    list_display = ["crop_type", "field", "harvest_date", "yield_amount", "revenue"]
+    list_display = ["crop_type", "field", "planting", "harvest_date", "yield_amount", "revenue"]
     list_filter = ["farm", "crop_type"]

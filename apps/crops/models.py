@@ -58,8 +58,21 @@ class CommodityPrice(models.Model):
 
 
 class HarvestRecord(FarmOwnedModel, NotesMixin, CostMixin):
+    """What came off a field.
+
+    `planting` is optional: perennial crops (hay, pasture) often have no
+    planting record. When it is set, `field` and `crop_type` must match it --
+    they stay on the harvest so unlinked harvests still say where and what.
+    """
+
     field = models.ForeignKey("land.Field", on_delete=models.CASCADE, related_name="harvests")
-    crop_type = models.ForeignKey(CropType, on_delete=models.CASCADE, related_name="harvests")
+    # PROTECT, not CASCADE: CropType is a catalog shared by every farm, and
+    # CASCADE let deleting a catalog entry silently delete every farm's harvests.
+    crop_type = models.ForeignKey(CropType, on_delete=models.PROTECT, related_name="harvests")
+    planting = models.ForeignKey(
+        "land.CropRecord", on_delete=models.SET_NULL, null=True, blank=True, related_name="harvests",
+        help_text="The planting this harvest came from, if any",
+    )
     harvest_date = models.DateField()
     yield_amount = models.DecimalField(max_digits=10, decimal_places=2)
     yield_unit = models.CharField(max_length=20, default="bushels")
@@ -73,3 +86,20 @@ class HarvestRecord(FarmOwnedModel, NotesMixin, CostMixin):
 
     def __str__(self):
         return f"{self.crop_type.name} — {self.field.name} ({self.harvest_date})"
+
+    def clean(self):
+        super().clean()
+        p = self.planting
+        if p is None:
+            return
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.farm_id and p.farm_id != self.farm_id:
+            errors["planting"] = "That planting belongs to another farm."
+        if self.field_id and p.field_id != self.field_id:
+            errors["field"] = f"The planting is on {p.field.name}; a harvest from it must be too."
+        if self.crop_type_id and p.crop_type_id != self.crop_type_id:
+            errors["crop_type"] = f"The planting is {p.crop_type.name}; a harvest from it must be too."
+        if errors:
+            raise ValidationError(errors)

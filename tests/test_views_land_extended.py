@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from apps.land.models import CropRecord, SoilSample
-from tests.factories import CropRecordFactory, FieldFactory, SoilSampleFactory
+from tests.factories import CropRecordFactory, CropTypeFactory, FieldFactory, SoilSampleFactory
 
 
 @pytest.mark.django_db
@@ -28,14 +28,15 @@ class TestCropRecordViews:
 
     def test_create_post(self, farm_client, farm):
         field = FieldFactory(farm=farm)
+        corn = CropTypeFactory(name="Test Corn")
         resp = farm_client.post(f"/land/fields/{field.pk}/crops/add/", {
-            "crop_name": "Corn",
+            "crop_type": corn.pk,
             "season": "2026-Spring",
             "status": "planned",
             "cost": "0.00",
         })
         assert resp.status_code == 302
-        assert CropRecord.objects.filter(farm=farm, field=field, crop_name="Corn").exists()
+        assert CropRecord.objects.filter(farm=farm, field=field, crop_type=corn).exists()
 
     def test_edit_get(self, farm_client, farm):
         field = FieldFactory(farm=farm)
@@ -47,7 +48,7 @@ class TestCropRecordViews:
         field = FieldFactory(farm=farm)
         record = CropRecordFactory(farm=farm, field=field, status="planned")
         resp = farm_client.post(f"/land/fields/{field.pk}/crops/{record.pk}/edit/", {
-            "crop_name": record.crop_name,
+            "crop_type": record.crop_type_id,
             "season": record.season,
             "status": "seeded",
             "cost": "0.00",

@@ -218,7 +218,7 @@ class CropRecordFactory(factory.django.DjangoModelFactory):
 
     farm = factory.SubFactory(FarmFactory)
     field = factory.SubFactory(FieldFactory)
-    crop_name = factory.Sequence(lambda n: f"Corn {n}")
+    crop_type = factory.SubFactory(CropTypeFactory)
     season = "2026-Spring"
     status = CropRecord.Status.PLANNED
 

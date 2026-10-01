@@ -23,7 +23,9 @@ class ProduceItemForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if farm:
             self.fields["source_animal"].queryset = Animal.objects.filter(farm=farm)
-            self.fields["source_crop_record"].queryset = CropRecord.objects.filter(farm=farm)
+            self.fields["source_crop_record"].queryset = (
+                CropRecord.objects.filter(farm=farm).select_related("crop_type", "field")
+            )
         self.fields["source_animal"].required = False
         self.fields["source_crop_record"].required = False
         for name, field in self.fields.items():

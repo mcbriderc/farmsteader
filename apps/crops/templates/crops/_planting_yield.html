@@ -1,0 +1,6 @@
+{% comment %}
+  A planting's harvested yield, summed per unit from its linked harvests.
+  Param: cr (a land.CropRecord; prefetch "harvests" on lists).
+{% endcomment %}
+{% with totals=cr.yield_totals %}{% if totals %}{% for unit, amount in totals %}<span class="whitespace-nowrap">{{ amount|floatformat:2 }} {{ unit }}</span>{% if not forloop.last %}<br>{% endif %}{% endfor %}
+<div class="text-xs text-gray-400">from {{ cr.harvests.all|length }} harvest{{ cr.harvests.all|length|pluralize }}</div>{% else %}—{% endif %}{% endwith %}
