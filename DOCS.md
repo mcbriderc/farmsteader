@@ -725,16 +725,19 @@ account, extra hostnames, USDA key, backups and version. It then:
 
 1. picks the storage for the template and for the disk separately (on most
    clusters they differ: templates on `local`, disks on `local-lvm` or ZFS)
-2. downloads the newest `debian-13-standard` template -- resolved at run time,
-   never a hardcoded filename
+2. downloads the newest `debian-13-standard` **amd64** template -- resolved at
+   run time, never a hardcoded filename. The catalogue also lists arm64 builds,
+   which sort newest; one of those creates a container that cannot start
+   ("Failed to spawn container") on the x86_64 hosts the installer requires
 3. creates the container (`nesting=1`, 1 GB swap, start on boot, host
    timezone, tag `farmsteader`), starts it and waits for its network
 4. runs FarmSteader's own `deploy/install.sh` inside it -- the same installer
    as everywhere else -- and writes the address into the container's Notes
 5. prints the address and admin login
 
-If anything fails after the container is created, it offers to remove the
-half-built container so a re-run starts clean. Cancelling any menu creates
+If anything fails after the container is created -- including the container
+never getting a network -- it offers to remove the half-built container so a
+re-run starts clean. Cancelling any menu creates
 nothing.
 
 **Updating:** run the same command again. When FarmSteader containers (tag

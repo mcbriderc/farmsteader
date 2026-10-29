@@ -13,6 +13,18 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-28
+
+### Fixed
+
+- **Proxmox installer picked an ARM template on x86 nodes.** Proxmox's template
+  catalogue now lists arm64 builds of Debian 13 alongside amd64, and the
+  installer took whichever sorted newest, so the container it created could
+  never start ("Failed to spawn container"). It now only considers amd64.
+- **Proxmox installer kept the container when it never came online.** A
+  container that got no network was left behind without the offer to remove
+  it that every other failure gets.
+
 ## [0.6.0] - 2026-09-30
 
 ### Added
@@ -213,9 +225,10 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.6.1...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
 [0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0
 [0.5.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.5.0
 [0.6.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.6.0
+[0.6.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.6.1

@@ -84,6 +84,29 @@ def test_template_is_the_newest_debian_13_not_a_hardcoded_name():
     assert template == "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
 
 
+def test_template_is_never_an_arm64_build():
+    """The catalogue lists arm64 templates too, and the stub's 13.2 is arm64-only.
+
+    Picking it creates a container that fails to start on an x86_64 node
+    ("Failed to spawn container"), which is what the first real Proxmox run hit.
+    """
+    result = run_ct(FS_CT_DEFAULTS="1")
+
+    template = pct_create_args(result)[3]
+    assert template.endswith("_amd64.tar.zst")
+    assert "arm64" not in result.stdout + result.stderr
+
+
+def test_a_container_that_never_comes_online_is_removed():
+    """die() exits explicitly, which bypasses the ERR trap's cleanup offer."""
+    result = run_ct(FS_CT_DEFAULTS="1", FARMSTEADER_DRY_RUN_NO_NET="1")
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "has no network after 60s" in output
+    assert "removed container 105" in output
+
+
 def test_template_store_and_disk_store_are_chosen_separately():
     """Templates live on `local` (dir), disks on `local-lvm`; one store for both fails."""
     args = pct_create_args(run_ct(FS_CT_DEFAULTS="1"))

@@ -50,7 +50,8 @@ msg_info() {
 msg_ok()    { spinner_stop; printf ' %s✓%s %s\n' "$GN" "$CL" "$1"; }
 msg_warn()  { spinner_stop; printf ' %s!%s %s\n' "$YW" "$CL" "$1" >&2; }
 msg_error() { spinner_stop; printf ' %s✗%s %s\n' "$RD" "$CL" "$1" >&2; }
-die()       { msg_error "$1"; exit 1; }
+# An explicit exit does not fire the ERR trap, so die offers the cleanup itself.
+die()       { msg_error "$1"; offer_removal; exit 1; }
 
 header() {
     cat <<'EOF'
@@ -80,16 +81,21 @@ error_handler() {
         echo; msg_warn "cancelled -- nothing was created"; exit 0
     fi
     msg_error "failed (exit $rc) at line $line"
-    if [ "$CT_CREATED" = 1 ] && [ -n "${CTID:-}" ]; then
-        if [ "${FS_CT_DEFAULTS:-0}" = 1 ] || wt_yesno "Installation failed" \
-            "Container $CTID was created but FarmSteader did not install.\n\nRemove container $CTID?"; then
-            pct stop "$CTID" >/dev/null 2>&1 || true
-            pct destroy "$CTID" >/dev/null 2>&1 && msg_ok "removed container $CTID"
-        else
-            msg_warn "container $CTID kept for inspection:  pct enter $CTID"
-        fi
-    fi
+    offer_removal
     exit "$rc"
+}
+
+offer_removal() {
+    [ "$CT_CREATED" = 1 ] && [ -n "${CTID:-}" ] || return 0
+    [ "${BASH_SUBSHELL:-0}" -gt 0 ] && return 0
+    CT_CREATED=0   # once only, whichever of die/error_handler gets here first
+    if [ "${FS_CT_DEFAULTS:-0}" = 1 ] || wt_yesno "Installation failed" \
+        "Container $CTID was created but FarmSteader did not install.\n\nRemove container $CTID?"; then
+        pct stop "$CTID" >/dev/null 2>&1 || true
+        pct destroy "$CTID" >/dev/null 2>&1 && msg_ok "removed container $CTID"
+    else
+        msg_warn "container $CTID kept for inspection:  pct enter $CTID"
+    fi
 }
 
 # A caller that needs cleanup defines fs_on_exit(); a second `trap ... EXIT`
@@ -189,9 +195,11 @@ select_storage() {  # rootdir|vztmpl
 
 # Newest Debian 13 standard template, resolved at run time. Never hardcode the
 # file name: point releases change it, and a pinned name is the most common
-# way these installers rot.
+# way these installers rot. The catalogue also carries arm64 builds, which
+# sort after amd64 at the same version; one of those creates a container that
+# can never start on this (x86_64-only, see arch_check) host.
 latest_template() {
-    pveam available -section system | awk '/debian-13-standard_/ {print $2}' | sort -V | tail -1
+    pveam available -section system | awk '/debian-13-standard_.*_amd64\.tar/ {print $2}' | sort -V | tail -1
 }
 
 # `pct list`'s Lock column is usually empty, so fields shift; the ID is always
@@ -221,7 +229,7 @@ if [ "${FARMSTEADER_DRY_RUN:-0}" = 1 ]; then
     }
     pveam() {
         case "$1" in
-            available) printf 'system          debian-12-standard_12.12-1_amd64.tar.zst\nsystem          debian-13-standard_13.1-2_amd64.tar.zst\nsystem          debian-13-standard_13.0-1_amd64.tar.zst\n' ;;
+            available) printf 'system          debian-12-standard_12.12-1_amd64.tar.zst\nsystem          debian-13-standard_13.1-2_amd64.tar.zst\nsystem          debian-13-standard_13.2-1_arm64.tar.zst\nsystem          debian-13-standard_13.1-2_arm64.tar.zst\nsystem          debian-13-standard_13.0-1_amd64.tar.zst\n' ;;
             list) printf 'NAME SIZE\n' ;;
             *) _stub pveam "$@" ;;
         esac
@@ -231,7 +239,7 @@ if [ "${FARMSTEADER_DRY_RUN:-0}" = 1 ]; then
             list) printf 'VMID       Status     Lock         Name\n' ;;
             exec)
                 case "$*" in
-                    *"getent hosts"*) return 0 ;;
+                    *"getent hosts"*) return "${FARMSTEADER_DRY_RUN_NO_NET:-0}" ;;
                     *"hostname -I"*) echo 192.168.1.50 ;;
                     *farmsteader.creds*) printf 'FarmSteader admin login\n  user:     admin\n  password: dry-run-password\n' ;;
                     *) _stub pct "$@" ;;
@@ -239,7 +247,8 @@ if [ "${FARMSTEADER_DRY_RUN:-0}" = 1 ]; then
             *) _stub pct "$@" ;;
         esac
     }
-    # FARMSTEADER_DRY_RUN_WT_RC=1 simulates the user pressing Cancel.
+    # FARMSTEADER_DRY_RUN_WT_RC=1 simulates the user pressing Cancel;
+    # FARMSTEADER_DRY_RUN_NO_NET=1 a container that never gets DNS.
     whiptail() { _stub whiptail "$@"; return "${FARMSTEADER_DRY_RUN_WT_RC:-0}"; }
     sleep() { :; }
 fi
