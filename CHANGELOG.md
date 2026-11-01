@@ -13,6 +13,14 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-01
+
+### Added
+
+- **Container image.** FarmSteader can now run with Docker or Podman, using the
+  published `ghcr.io/mcbriderc/farmsteader` image and a compose file that also
+  runs PostgreSQL and Redis. See "Running in a Container" in the documentation.
+
 ## [0.7.0] - 2026-11-01
 
 ### Added
@@ -258,7 +266,7 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.8.0...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
 [0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0
@@ -266,3 +274,4 @@ checkout-and-run-it-yourself.
 [0.6.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.6.0
 [0.6.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.6.1
 [0.7.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.7.0
+[0.8.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.8.0

@@ -13,4 +13,4 @@ parses it with the expression above and fails the build when it disagrees with
 the git tag.
 """
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"

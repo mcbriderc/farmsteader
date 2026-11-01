@@ -1,0 +1,115 @@
+# FarmSteader with Docker or Podman. See "Container" in DOCS.md.
+#
+#   cp .env.example .env     # then fill in the two secrets
+#   docker compose up -d     # or: podman-compose up -d
+#
+# Image names are fully qualified because Podman has no default registry.
+
+x-app: &app
+  image: ${FARMSTEADER_IMAGE:-ghcr.io/mcbriderc/farmsteader}:${FARMSTEADER_VERSION:-latest}
+  environment: &app-env
+    SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+    DATABASE_URL: postgis://farmsteader:${DB_PASSWORD:?set DB_PASSWORD in .env}@db:5432/farmsteader
+    REDIS_URL: redis://redis:6379/0
+    # localhost stays listed for the health check below.
+    ALLOWED_HOSTS: localhost,127.0.0.1,${ALLOWED_HOSTS:-}
+    CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+    FARMSTEADER_HTTPS: ${FARMSTEADER_HTTPS:-0}
+    USE_PROXY_SSL_HEADER: ${USE_PROXY_SSL_HEADER:-0}
+    # AGPL "Source" link in the sidebar. Correct for the unmodified published
+    # image; if you modify FarmSteader, point it at your own fork.
+    FARMSTEADER_SOURCE_URL: ${FARMSTEADER_SOURCE_URL:-https://github.com/mcbriderc/farmsteader}
+    USDA_NASS_API_KEY: ${USDA_NASS_API_KEY:-}
+    SENTRY_DSN: ${SENTRY_DSN:-}
+
+services:
+  db:
+    image: docker.io/postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: farmsteader
+      POSTGRES_USER: farmsteader
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U farmsteader"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: docker.io/redis:7-alpine
+    restart: unless-stopped
+    # Only a task queue, so nothing here is worth writing to disk.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Runs once per `up`, before anything else starts. A one-shot service because
+  # several replicas racing `migrate` can corrupt a schema.
+  migrate:
+    <<: *app
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    <<: *app
+    command: ["web"]
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+    ports:
+      - "${FARMSTEADER_PORT:-8000}:8000"
+    volumes:
+      - media:/data/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8000/readyz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    restart: unless-stopped
+    environment:
+      <<: *app-env
+      CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-2}
+    volumes:
+      - media:/data/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  beat:
+    <<: *app
+    command: ["beat"]
+    restart: unless-stopped
+    volumes:
+      - beat:/data/beat
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  media:
+  beat:

@@ -1,0 +1,66 @@
+# FarmSteader container image. Build it with scripts/build-image.sh.
+#
+# The build context is an unpacked release tarball, never a git checkout. The
+# tarball has already been stripped of tests and personal files and asserted
+# clean by build-tarball.sh, so nothing else can end up in a public image, and
+# it carries the prebuilt stylesheet, so no Tailwind step is needed here. The
+# COPY of VERSION below is the guard: only a tarball has that file, so building
+# straight from a checkout fails rather than sweeping up the whole working tree.
+#
+# python:*-trixie matches the Debian 13 LXC target: same GDAL and GEOS, so one
+# set of geo behaviour to test. Every Python dependency ships a manylinux wheel,
+# so no compiler is needed.
+FROM docker.io/library/python:3.13-slim-trixie
+
+ARG VERSION=unknown
+
+LABEL org.opencontainers.image.title="FarmSteader" \
+      org.opencontainers.image.description="Self-hosted farm management" \
+      org.opencontainers.image.source="https://github.com/mcbriderc/farmsteader" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
+      org.opencontainers.image.version="${VERSION}"
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gdal-bin binutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dependencies before the code, so a code-only rebuild reuses this layer.
+COPY requirements/ /app/requirements/
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir -r /app/requirements/prod.txt
+
+COPY VERSION /app/VERSION
+COPY . /app/
+
+ENV PATH="/opt/venv/bin:${PATH}" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DJANGO_SETTINGS_MODULE=config.settings.prod \
+    MEDIA_ROOT=/data/media \
+    GUNICORN_BIND=0.0.0.0:8000 \
+    FARMSTEADER_SERVE_MEDIA=1 \
+    USE_PROXY_SSL_HEADER=0 \
+    HOME=/tmp
+
+WORKDIR /app
+
+# base.py and prod.py read these at import, so collectstatic and check need
+# values, but nothing connects to anything. `check` proves GDAL loads, so an
+# image with broken geo libraries fails here and not on the user's machine.
+RUN SECRET_KEY=build-only DATABASE_URL=postgis://build:build@localhost/build ALLOWED_HOSTS=build \
+        python manage.py collectstatic --noinput \
+    && SECRET_KEY=build-only DATABASE_URL=postgis://build:build@localhost/build ALLOWED_HOSTS=build \
+        python manage.py check
+
+# The code stays root-owned and read-only to the app, as in the LXC install.
+RUN useradd --uid 10001 --no-create-home --home-dir /tmp --shell /usr/sbin/nologin farmsteader \
+    && mkdir -p /data/media /data/beat \
+    && chown -R farmsteader:farmsteader /data \
+    && chmod 0755 /app/deploy/container/entrypoint.sh
+
+USER 10001
+
+EXPOSE 8000
+
+ENTRYPOINT ["/app/deploy/container/entrypoint.sh"]
+CMD ["web"]

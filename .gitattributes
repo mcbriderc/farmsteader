@@ -29,8 +29,8 @@
 # scripts/ is excluded because the tarball ships a pre-built stylesheet, so
 # nothing in it needs to compile CSS; build-tarball.sh and release.sh need real
 # git history and are meaningless outside a checkout; and scripts/ci/test.sh
-# drives a test suite that is itself excluded. The container image builds from
-# the repo, not the tarball, so it still gets scripts/build-css.sh.
+# drives a test suite that is itself excluded. The container image is built from
+# this tarball too, so it needs no stylesheet step either.
 
 # Contributor-facing, not user-facing. LICENSE and THIRD-PARTY-NOTICES.md are
 # deliberately NOT here: AGPL section 4 requires the licence to be conveyed with

@@ -217,6 +217,8 @@ pytz==2026.4
     # via
     #   -c requirements/base.txt
     #   yfinance
+pyyaml==6.0.3
+    # via -r requirements/dev.in
 redis==8.1.0
     # via
     #   -c requirements/base.txt

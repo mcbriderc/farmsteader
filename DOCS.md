@@ -15,6 +15,7 @@ A comprehensive, self-hosted farm management web application built with Django, 
 - [Getting Started (Development)](#getting-started-development)
 - [Running the Application](#running-the-application)
 - [Installing on a Server (Debian, Ubuntu, LXC or VM)](#installing-on-a-server-debian-ubuntu-lxc-or-vm)
+- [Running in a Container (Docker or Podman)](#running-in-a-container-docker-or-podman)
 - [Project Structure](#project-structure)
 - [Configuration Reference](#configuration-reference)
 - [Import / Export](#import--export)
@@ -832,6 +833,107 @@ only declares success when `/healthz` reports the version it installed.
 
 ---
 
+## Running in a Container (Docker or Podman)
+
+The published image is `ghcr.io/mcbriderc/farmsteader`, built for x86_64 from the
+same tarball as every other install. Compose runs it alongside PostgreSQL and Redis.
+
+### Setup
+
+```bash
+mkdir farmsteader && cd farmsteader
+BASE=https://raw.githubusercontent.com/mcbriderc/farmsteader/master/deploy/container
+curl -fsSLO "$BASE/compose.yaml"
+curl -fsSL -o .env "$BASE/.env.example"
+
+# Fill in the two required secrets
+for key in SECRET_KEY DB_PASSWORD; do
+  sed -i "s/^$key=.*/$key=$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')/" .env
+done
+
+docker compose up -d     # or: podman-compose up -d
+```
+
+Open <http://localhost:8000> and choose **Register**, which creates your account
+and first farm. To reach it from other computers, add this machine's address to
+`ALLOWED_HOSTS` in `.env` and run `docker compose up -d` again. Every setting is
+explained in `.env`. For the admin site, create a superuser:
+
+```bash
+docker compose exec web python manage.py createsuperuser
+```
+
+### HTTPS
+
+The container serves plain HTTP on port 8000. To use HTTPS, put a reverse proxy in
+front and set `FARMSTEADER_HTTPS=1`, `USE_PROXY_SSL_HEADER=1` and
+`CSRF_TRUSTED_ORIGINS` in `.env`. The proxy must overwrite `X-Forwarded-Proto` on
+every request. Leave `USE_PROXY_SSL_HEADER` off when there is no proxy, or any client
+could claim to be on HTTPS.
+
+### Upgrading
+
+Back up first, because unlike the server installer this path has no automatic
+rollback:
+
+```bash
+docker compose exec -T db pg_dump -U farmsteader -Fc farmsteader > farmsteader.dump
+docker compose pull
+docker compose down
+docker compose up -d
+curl http://localhost:8000/healthz    # reports the running version
+```
+
+Keep the `down`: without it, `podman-compose up -d` leaves the old version running
+when the tag name is unchanged, as it is with `latest`. It does not touch your data.
+
+Migrations run automatically before the app starts. If you pinned
+`FARMSTEADER_VERSION` in `.env`, change it before pulling. A newer release can also
+change `compose.yaml`, so check the changelog when upgrading.
+
+If a migration fails, the site stays down and `web` logs `waiting for database
+migrations`. `docker compose logs migrate` shows the error. To go back, set
+`FARMSTEADER_VERSION` in `.env` to the version you came from, then restore the dump:
+
+```bash
+docker compose stop web worker beat
+docker compose exec -T db dropdb -U farmsteader farmsteader
+docker compose exec -T db createdb -U farmsteader farmsteader
+docker compose exec -T db pg_restore -U farmsteader -d farmsteader --exit-on-error < farmsteader.dump
+docker compose down
+docker compose up -d
+```
+
+The dump holds the database only. Uploads stay in the `media` volume, and an upgrade
+does not change them.
+
+### Backups
+
+Nothing backs up a container install automatically. Your data is in three named
+volumes: `pgdata`, `media` and `beat`. `docker compose down` keeps them;
+`docker compose down -v` deletes them.
+
+To save a whole farm, including its uploads, as a file you can restore on any install:
+
+```bash
+docker compose exec web python manage.py farm_backup --farm "My Farm" --output /tmp/backup.zip
+docker compose exec -T web cat /tmp/backup.zip > backup.zip
+```
+
+To restore one, which always creates a new farm:
+
+```bash
+docker compose exec -T web sh -c 'cat > /tmp/backup.zip' < backup.zip
+docker compose exec web python manage.py farm_restore /tmp/backup.zip --owner YOUR_USERNAME
+```
+
+### How the image is built
+
+`scripts/build-image.sh` builds the release tarball and uses the unpacked tarball as
+the build context, so the image holds only what a release ships. The app runs as
+uid 10001 and its code is read-only to it. Since there is no nginx in the image,
+`FARMSTEADER_SERVE_MEDIA=1` makes Django serve uploads, which still requires a login.
+
 ## Project Structure
 
 ```
@@ -1296,6 +1398,7 @@ the version file to say `0.3.0-rc1` too; tagging `v0.2.0-rc1` on a tree at
 | `RELEASE_TOKEN` | secret | Release API (`write:repository`) |
 | `GH_REPO` | variable | Public mirror as `owner/repo` -- `mcbriderc/farmsteader`. No URL, no `.git` |
 | `GH_TOKEN` | secret | GitHub push + release (classic PAT: `repo`) |
+| `GHCR_TOKEN` | secret | Container image push to ghcr.io (classic PAT: `write:packages` only; GitHub Packages rejects fine-grained tokens) |
 
 The obvious name, `FORGEJO_TOKEN`, is not allowed: Forgejo rejects any secret
 starting with `FORGEJO_`, `GITEA_` or `GITHUB_`.
