@@ -1,8 +1,13 @@
+from django.core.validators import FileExtensionValidator
 from django.db import models
 
 from apps.core.models import CostMixin, FarmOwnedModel, NotesMixin
 
 _LAND_FIELD = "land.Field"
+# No web formats such as .html or .svg, which run scripts when opened in a browser.
+_VET_ATTACHMENT_TYPES = [
+    "pdf", "txt", "csv", "doc", "docx", "odt", "xls", "xlsx", "ods", "jpg", "jpeg", "png", "gif", "webp", "heic",
+]
 
 
 class Animal(FarmOwnedModel, NotesMixin):
@@ -103,7 +108,11 @@ class VetRecord(FarmOwnedModel, NotesMixin, CostMixin):
     description = models.TextField()
     veterinarian = models.CharField(max_length=200, blank=True)
     next_due_date = models.DateField(null=True, blank=True)
-    attachment = models.FileField(upload_to="livestock/vet_attachments/", blank=True)
+    attachment = models.FileField(
+        upload_to="livestock/vet_attachments/",
+        blank=True,
+        validators=[FileExtensionValidator(_VET_ATTACHMENT_TYPES)],
+    )
 
     class Meta:
         db_table = "vet_record"

@@ -1,0 +1,5 @@
+{% if photo %}
+<a href="{{ photo.url }}" target="_blank" rel="noopener" class="inline-block mb-6">
+  <img src="{{ photo.url }}" alt="Photo of {{ label }}" class="max-h-72 max-w-full rounded-xl border border-gray-200 shadow-sm">
+</a>
+{% endif %}

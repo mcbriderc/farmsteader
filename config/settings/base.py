@@ -112,7 +112,8 @@ STATIC_ROOT = Path(env.str("STATIC_ROOT", default=str(BASE_DIR / "staticfiles"))
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = Path(env.str("MEDIA_ROOT", default=str(BASE_DIR / "media")))
-# Have Django serve uploads itself, for the container image, which has no nginx.
+# Uploads always go through apps.core.views.media_file. It normally hands the file
+# to nginx; this has Django send it instead, where there is no nginx.
 FARMSTEADER_SERVE_MEDIA = env.bool("FARMSTEADER_SERVE_MEDIA", default=False)
 
 STORAGES = {

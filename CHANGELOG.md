@@ -13,6 +13,25 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-01
+
+### Added
+
+- **Photos on detail pages.** Animal, equipment and building pages now show the
+  uploaded photo, and vet records link to their attachment. They used to appear
+  only as a link on the edit form.
+
+### Security
+
+- **Uploads are private to their farm.** Photos and vet attachments are now only
+  sent to a logged-in member of the farm they belong to. LXC and server installs
+  used to serve them to anyone who had the URL, without a login, and containers
+  to any logged-in user.
+- **Vet attachments are limited to common document and image types** and always
+  download. An `.html` file could be uploaded and would run as a page on the site
+  when opened. A record that already holds a refused type has to have its
+  attachment cleared or replaced the next time it is edited.
+
 ## [0.8.0] - 2026-11-01
 
 ### Added
@@ -266,7 +285,7 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.9.0...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
 [0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0
@@ -275,3 +294,4 @@ checkout-and-run-it-yourself.
 [0.6.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.6.1
 [0.7.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.7.0
 [0.8.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.8.0
+[0.9.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.9.0

@@ -1,18 +1,70 @@
 import logging
+import mimetypes
 from datetime import date as date_type
+from functools import cache
+from pathlib import PurePosixPath
+from urllib.parse import quote
 
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.files.storage import default_storage
 from django.db import connection
-from django.db.models import F, Q
-from django.http import JsonResponse
+from django.db.models import F, FileField, ImageField, Q
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import content_disposition_header
 from django.views.decorators.cache import never_cache
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_safe
+
+from .models import FarmOwnedModel
 
 logger = logging.getLogger(__name__)
+
+
+@cache
+def _upload_fields():
+    return [
+        (model, field)
+        for model in apps.get_models()
+        if issubclass(model, FarmOwnedModel)
+        for field in model._meta.fields
+        if isinstance(field, FileField)
+    ]
+
+
+@require_safe
+def media_file(request, path):
+    """Send an upload, but only to a member of the farm whose record holds it.
+
+    A login alone would not protect anything, since anyone can register. Looking
+    the path up also rules out traversal: only a stored name can get through.
+    """
+    field = next(
+        (f for model, f in _upload_fields() if model.objects.filter(farm=request.farm, **{f.name: path}).exists()),
+        None,
+    )
+    if field is None:
+        raise Http404
+
+    if settings.FARMSTEADER_SERVE_MEDIA:
+        try:
+            response = FileResponse(default_storage.open(path, "rb"))
+        except FileNotFoundError:
+            raise Http404 from None
+    else:
+        # nginx sends the file from its internal location, keeping the headers below.
+        response = HttpResponse(headers={"X-Accel-Redirect": f"/protected-media/{quote(path)}"})
+
+    # Only a checked image may open in the browser. Anything else opened on this
+    # origin, such as an uploaded .html file, could act as whoever opened it.
+    as_download = not isinstance(field, ImageField)
+    response["Content-Type"] = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    response["Content-Disposition"] = content_disposition_header(as_download, PurePosixPath(path).name)
+    response["Cache-Control"] = "private, max-age=86400"
+    return response
 
 
 def _build_action_items(farm, today):

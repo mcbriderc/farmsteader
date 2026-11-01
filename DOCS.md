@@ -242,7 +242,7 @@ meaningful area, and PostGIS cannot intersect them with a field.
 
 ### Livestock (`/livestock/`)
 
-Animal registry with ear tag as the primary identifier (unique per farm). Tracks species (cattle, sheep, goat, pig, horse, poultry, etc.), breed, gender, reproductive status, and active/sold/deceased status. Supports photo uploads.
+Animal registry with ear tag as the primary identifier (unique per farm). Tracks species (cattle, sheep, goat, pig, horse, poultry, etc.), breed, gender, reproductive status, and active/sold/deceased status. Supports photo uploads, shown on the detail page, where vet records also link to their attachments. Attachments can be PDFs, images, or text, Word, Excel or OpenDocument files, and always download. Uploads are only sent to members of the farm they belong to.
 
 The detail page has tabs for veterinary records (immunizations, exams, treatments, surgeries, pregnancy checks, deworming), field movement history, feed log, and offspring lineage. Breeding lineage is tracked via self-referential sire/dam foreign keys. Moving an animal between fields automatically updates its `current_field`. The `days_in_current_field` property computes how long an animal has been in its current field based on movement history.
 
@@ -932,7 +932,7 @@ docker compose exec web python manage.py farm_restore /tmp/backup.zip --owner YO
 `scripts/build-image.sh` builds the release tarball and uses the unpacked tarball as
 the build context, so the image holds only what a release ships. The app runs as
 uid 10001 and its code is read-only to it. Since there is no nginx in the image,
-`FARMSTEADER_SERVE_MEDIA=1` makes Django serve uploads, which still requires a login.
+`FARMSTEADER_SERVE_MEDIA=1` makes Django send uploads itself.
 
 ## Project Structure
 

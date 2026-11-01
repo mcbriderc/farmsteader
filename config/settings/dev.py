@@ -13,6 +13,8 @@ except ImportError:
 
 INTERNAL_IPS = ["127.0.0.1"]
 
+FARMSTEADER_SERVE_MEDIA = True
+
 # WhiteNoise is in the shared middleware stack so dev exercises the same chain
 # as prod, but STATIC_ROOT only exists after collectstatic -- which nobody runs
 # locally. Serving through the staticfiles finders instead keeps it quiet and

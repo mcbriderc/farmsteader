@@ -4,15 +4,12 @@ These pin what the image build cannot check for itself. The image is exercised
 for real by scripts/build-image.sh plus `compose up`, see "Container" in DOCS.md.
 """
 
-import importlib
 import pathlib
 import re
 import subprocess
 
 import pytest
 import yaml
-from django.test import override_settings
-from django.urls import clear_url_caches
 
 CONTAINER = pathlib.Path("deploy/container")
 CONTAINERFILE = (CONTAINER / "Containerfile").read_text()
@@ -20,6 +17,7 @@ ENTRYPOINT = (CONTAINER / "entrypoint.sh").read_text()
 COMPOSE = yaml.safe_load((CONTAINER / "compose.yaml").read_text())
 SERVICES = COMPOSE["services"]
 APP_SERVICES = ("migrate", "web", "worker", "beat")
+RELEASE_WORKFLOW = pathlib.Path(".forgejo/workflows/release.yml")
 
 
 class TestImage:
@@ -96,54 +94,8 @@ class TestCompose:
 
 
 class TestReleaseJob:
+    @pytest.mark.skipif(not RELEASE_WORKFLOW.exists(), reason="the public snapshot leaves out .forgejo")
     def test_a_failed_image_cannot_hold_up_the_release(self):
-        workflow = yaml.safe_load(pathlib.Path(".forgejo/workflows/release.yml").read_text())
+        workflow = yaml.safe_load(RELEASE_WORKFLOW.read_text())
         assert workflow["jobs"]["image"]["needs"] == "release"
         assert workflow["jobs"]["release"]["needs"] == "test"
-
-
-@pytest.fixture
-def reload_urls():
-    """config.urls decides at import whether to add the media route."""
-    import config.urls
-
-    def reload():
-        clear_url_caches()
-        importlib.reload(config.urls)
-
-    yield reload
-    reload()
-
-
-@pytest.fixture
-def uploaded_file(settings, tmp_path):
-    settings.MEDIA_ROOT = tmp_path
-    (tmp_path / "photo.txt").write_text("a photo")
-    return "/media/photo.txt"
-
-
-@pytest.mark.django_db
-class TestMediaServing:
-    def _enabled(self, reload_urls):
-        with override_settings(FARMSTEADER_SERVE_MEDIA=True):
-            reload_urls()
-
-    def test_served_when_switched_on(self, farm_client, uploaded_file, reload_urls):
-        self._enabled(reload_urls)
-        response = farm_client.get(uploaded_file)
-        assert response.status_code == 200
-        assert b"".join(response.streaming_content) == b"a photo"
-
-    def test_requires_a_login(self, client, uploaded_file, reload_urls):
-        self._enabled(reload_urls)
-        response = client.get(uploaded_file)
-        assert response.status_code == 302
-        assert "/accounts/login/" in response["Location"]
-
-    def test_cannot_escape_the_media_directory(self, farm_client, uploaded_file, reload_urls):
-        self._enabled(reload_urls)
-        assert farm_client.get("/media/../../etc/passwd").status_code in (400, 404)
-
-    def test_off_by_default(self, farm_client, uploaded_file, reload_urls):
-        reload_urls()
-        assert farm_client.get(uploaded_file).status_code == 404

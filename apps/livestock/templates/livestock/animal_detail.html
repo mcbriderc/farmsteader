@@ -16,6 +16,8 @@
   </div>
 </div>
 
+{% include "core/_detail_photo.html" with photo=animal.photo label=animal.ear_tag %}
+
 {# Info cards #}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
@@ -133,6 +135,7 @@
           {% if vr.veterinarian %}<span>Vet: {{ vr.veterinarian }}</span>{% endif %}
           {% if vr.cost %}<span>Cost: ${{ vr.cost }}</span>{% endif %}
           {% if vr.next_due_date %}<span>Next due: {{ vr.next_due_date }}</span>{% endif %}
+          {% if vr.attachment %}<a href="{{ vr.attachment.url }}" download class="text-farm-600 hover:text-farm-700">Attachment</a>{% endif %}
         </div>
       </div>
       {% endfor %}
