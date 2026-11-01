@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load units %}
 {% block title %}Fields — FarmSteader{% endblock %}
 
 {% block content %}
@@ -37,8 +38,8 @@
     </div>
     <div class="grid grid-cols-2 gap-2 text-sm">
       <div>
-        <span class="text-gray-500">Acreage</span>
-        <p class="font-medium text-gray-900">{{ field.acreage }} ac</p>
+        <span class="text-gray-500">{{ units.land_area_heading }}</span>
+        <p class="font-medium text-gray-900">{{ field.acreage|land_area:units }}</p>
       </div>
       <div>
         <span class="text-gray-500">Soil Type</span>

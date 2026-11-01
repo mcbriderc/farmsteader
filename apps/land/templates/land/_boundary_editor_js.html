@@ -11,31 +11,77 @@
 <script src="{% static 'vendor/js/turf.min.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const map = L.map('map').setView([39.8283, -98.5795], 5);
+  // Both tile sets stop at zoom 19. Past that Leaflet scales the last tiles up
+  // instead of going blank, so a corner can still be placed between pixels.
+  const map = L.map('map', { maxZoom: 22 }).setView([39.8283, -98.5795], 5);
 
   const street = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
-    maxZoom: 19,
+    maxNativeZoom: 19, maxZoom: 22,
   });
   const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: '&copy; Esri', maxZoom: 19,
+    attribution: '&copy; Esri', maxNativeZoom: 19, maxZoom: 22,
   });
   street.addTo(map);
   L.control.layers({'Street': street, 'Satellite': satellite}).addTo(map);
 
+  const mapEl = document.getElementById('map');
+  const FullScreen = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd: function() {
+      const bar = L.DomUtil.create('div', 'leaflet-bar');
+      const link = L.DomUtil.create('a', '', bar);
+      link.href = '#';
+      link.setAttribute('role', 'button');
+      link.title = 'Full screen';
+      link.innerHTML = FULL_SCREEN_ICON;
+      L.DomEvent.disableClickPropagation(bar);
+      L.DomEvent.on(link, 'click', function(e) {
+        L.DomEvent.preventDefault(e);
+        const expanded = mapEl.classList.toggle('boundary-map-expanded');
+        link.title = expanded ? 'Exit full screen' : 'Full screen';
+        link.innerHTML = expanded ? EXIT_FULL_SCREEN_ICON : FULL_SCREEN_ICON;
+        map.invalidateSize();
+      });
+      return bar;
+    },
+  });
+  const ICON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="margin:7px">';
+  const FULL_SCREEN_ICON = ICON_SVG + '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>';
+  const EXIT_FULL_SCREEN_ICON = ICON_SVG + '<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>';
+  map.addControl(new FullScreen());
+
+  // Leaflet 1.9 counts every pointer-events browser as touch, so leaflet-draw
+  // swaps in its 20px touch squares even under a mouse -- covering the very
+  // point being placed. One small ring for drawing and editing alike.
+  const vertexIcon = new L.DivIcon({ className: 'boundary-vertex', iconSize: new L.Point(12, 12) });
+  L.Edit.PolyVerticesEdit.mergeOptions({ icon: vertexIcon, touchIcon: vertexIcon });
+
+  // leaflet-draw deletes a corner on a plain click, with no undo -- too easy to
+  // hit while aiming to drag one. Right-click (long-press on touch) instead.
+  const removeVertex = L.Edit.PolyVerticesEdit.prototype._onMarkerClick;
+  L.Edit.PolyVerticesEdit.include({
+    _onMarkerClick: function() {},
+    _onContextMenu: function(e) {
+      L.DomEvent.preventDefault(e.originalEvent);
+      removeVertex.call(this, e);
+    },
+  });
+
   const drawnItems = new L.FeatureGroup();
   map.addLayer(drawnItems);
 
+  // No edit button: the finished shape's corners are always draggable.
   const drawControl = new L.Control.Draw({
     draw: {
-      polygon: { allowIntersection: false, showArea: true },
+      polygon: { allowIntersection: false, showArea: true, icon: vertexIcon, touchIcon: vertexIcon },
       polyline: false,
       rectangle: true,
       circle: false,
       circlemarker: false,
       marker: false,
     },
-    edit: { featureGroup: drawnItems },
+    edit: { featureGroup: drawnItems, edit: false },
   });
   map.addControl(drawControl);
 
@@ -49,20 +95,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Preview only; the server recomputes acreage in an equal-area projection.
     const areaSqM = turf.area(geojson);
-    acreageValue.textContent = (areaSqM / 4046.8564224).toFixed(2);
+    acreageValue.textContent = (areaSqM / {{ units.sq_m_per_land_area }}).toFixed(2);
     acreagePreview.style.display = 'block';
   }
 
-  map.on(L.Draw.Event.CREATED, function(e) {
+  // The shape is always held as a plain polygon with editing switched on, so a
+  // rectangle becomes four ordinary corners and adjusting needs no edit mode.
+  function setShape(layer) {
     drawnItems.clearLayers();
-    drawnItems.addLayer(e.layer);
-    updateFromLayer(e.layer);
-  });
+    const poly = L.polygon(layer.getLatLngs());
+    drawnItems.addLayer(poly);
+    poly.editing.enable();
+    poly.on('edit', function() { updateFromLayer(poly); });
+    updateFromLayer(poly);
+  }
 
-  map.on(L.Draw.Event.EDITED, function(e) {
-    e.layers.eachLayer(function(layer) {
-      updateFromLayer(layer);
-    });
+  map.on(L.Draw.Event.CREATED, function(e) {
+    setShape(e.layer);
   });
 
   map.on(L.Draw.Event.DELETED, function() {
@@ -71,11 +120,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   {% if editing and boundary_geojson %}
-  const existingLayer = L.geoJSON({{ boundary_geojson|safe }});
-  existingLayer.eachLayer(function(layer) {
-    drawnItems.addLayer(layer);
-    updateFromLayer(layer);
-  });
+  L.geoJSON({{ boundary_geojson|safe }}).eachLayer(setShape);
   map.fitBounds(drawnItems.getBounds().pad(0.2));
   {% endif %}
 

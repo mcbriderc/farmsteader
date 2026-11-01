@@ -28,6 +28,7 @@ from django.db import models, transaction
 from apps.accounts.models import Farm, FarmMembership, FarmSettings
 from apps.buildings.models import Building, BuildingMaintenanceRecord
 from apps.consumables.models import ConsumableType, InventoryItem, InventoryTransaction
+from apps.core.units import UnitSystem
 from apps.crops.models import CropType, HarvestRecord
 from apps.employment.models import Employee, Task, TimeEntry
 from apps.equipment.models import Equipment, MaintenanceRecord
@@ -41,7 +42,8 @@ FORMAT = "farmsteader-backup"
 #: is the whole point of having one.
 #:   1 -- original format (<= 0.5.0)
 #:   2 -- plantings link to the crop catalog; their yields live on harvests (0.6.0)
-FORMAT_VERSION = 2
+#:   3 -- farm settings carry a measurement unit system (0.7.0)
+FORMAT_VERSION = 3
 
 #: Written on harvests created from a planting's old yield fields. Same text as
 #: the crops 0005 migration uses for the same conversion.
@@ -345,6 +347,8 @@ def _upgrade_archive(manifest, data, warnings):
     """
     if manifest.get("format_version", FORMAT_VERSION) < 2:
         _upgrade_v1_to_v2(manifest, data, warnings)
+    if manifest.get("format_version", FORMAT_VERSION) < 3:
+        _upgrade_v2_to_v3(manifest, data)
 
 
 def _upgrade_v1_to_v2(manifest, data, warnings):
@@ -419,6 +423,16 @@ def _upgrade_v1_to_v2(manifest, data, warnings):
             f"linked to the crop catalog ({added} new crop type(s) added), {moved} planting "
             f"yield(s) moved into harvests, {linked} harvest(s) linked to their planting."
         )
+
+
+def _upgrade_v2_to_v3(manifest, data):
+    """Farms backed up before the unit setting existed keep what they saw: US units."""
+    label = FarmSettings._meta.label
+    for row in data.get(label) or []:
+        row.setdefault("unit_system", UnitSystem.US.value)
+    fields = manifest.setdefault("schema", {}).get(label)
+    if fields is not None and "unit_system" not in fields:
+        fields.append("unit_system")
 
 
 def _reconcile_schema(schema, errors, warnings):

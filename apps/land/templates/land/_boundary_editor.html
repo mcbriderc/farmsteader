@@ -15,9 +15,13 @@
   <div id="search-error" class="text-sm text-red-600 mb-2" style="display:none;"></div>
 
   <div id="map" class="w-full rounded-lg border border-gray-200" style="height: 50vh;"></div>
+  <p class="mt-2 text-xs text-gray-500">
+    Zoom with the scroll wheel or + / &minus;, even mid-drawing; the corner button at the top right makes the map full screen.
+    Once the shape is drawn, drag a corner to move it, drag a faint half-way handle to add a corner, or right-click a corner to remove it.
+  </p>
   <div id="reference-note" class="mt-2 text-xs text-gray-500" style="display:none;"></div>
   <div id="acreage-preview" class="mt-3 text-sm font-medium text-farm-700" style="display:none;">
-    Estimated area: <span id="acreage-value"></span> acres
+    Estimated area: <span id="acreage-value"></span> {{ units.land_area_label }}
   </div>
   {{ form.boundary_geojson }}
 </div>

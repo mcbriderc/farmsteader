@@ -575,7 +575,7 @@ class TestManifest:
         manifest = export_farm(farm, archive)
 
         assert manifest["format"] == "farmsteader-backup"
-        assert manifest["format_version"] == 2  # 2: plantings link to the crop catalog (0.6.0)
+        assert manifest["format_version"] == 3  # 3: farm settings carry a unit system (0.7.0)
         assert manifest["farm"]["name"] == farm.name
         assert manifest["counts"]["land.Field"] == 2
         assert "boundary" in manifest["schema"]["land.Field"]

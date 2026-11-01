@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load units %}
 {% load static %}
 {% block title %}{{ parcel.name }} — FarmSteader{% endblock %}
 
@@ -23,12 +24,12 @@
 {# Summary cards #}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
-    <div class="text-xs text-gray-500 uppercase tracking-wide">Total Acreage</div>
-    <div class="text-xl font-bold text-gray-900 mt-1">{{ parcel.acreage }} ac</div>
+    <div class="text-xs text-gray-500 uppercase tracking-wide">Total {{ units.land_area_heading }}</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ parcel.acreage|land_area:units }}</div>
   </div>
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
     <div class="text-xs text-gray-500 uppercase tracking-wide">In Fields</div>
-    <div class="text-xl font-bold text-gray-900 mt-1">{{ covered_acreage|floatformat:2 }} ac</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ covered_acreage|land_area:units }}</div>
     <div class="text-xs text-gray-500 mt-1">{{ covered_pct }}% of the property</div>
   </div>
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
@@ -54,7 +55,7 @@
     <thead>
       <tr class="text-left text-gray-500 border-b border-gray-200">
         <th class="py-2 font-medium">Field</th>
-        <th class="py-2 font-medium text-right">Field acreage</th>
+        <th class="py-2 font-medium text-right">Field {{ units.land_area_heading|lower }}</th>
         <th class="py-2 font-medium text-right">Inside this property</th>
       </tr>
     </thead>
@@ -66,8 +67,8 @@
             <span class="w-3 h-3 rounded-full inline-block" style="background-color: {{ field.color }}"></span>{{ field.name }}
           </a>
         </td>
-        <td class="py-2 text-right">{{ field.acreage }} ac</td>
-        <td class="py-2 text-right">{{ inside|floatformat:2 }} ac</td>
+        <td class="py-2 text-right">{{ field.acreage|land_area:units }}</td>
+        <td class="py-2 text-right">{{ inside|land_area:units }}</td>
       </tr>
       {% endfor %}
     </tbody>

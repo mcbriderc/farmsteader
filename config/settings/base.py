@@ -72,6 +72,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "apps.accounts.context_processors.current_farm",
                 "apps.core.context_processors.app_meta",
+                "apps.core.context_processors.units",
             ],
         },
     },

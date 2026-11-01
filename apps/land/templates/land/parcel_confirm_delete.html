@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% load units %}
 {% block title %}Delete {{ parcel.name }} — FarmSteader{% endblock %}
 
 {% block content %}
 <div class="max-w-md mx-auto mt-12">
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-6">
     <h1 class="text-xl font-bold text-gray-900 mb-2">Delete Property Boundary</h1>
-    <p class="text-gray-600 mb-4">Are you sure you want to delete <strong>{{ parcel.name }}</strong> ({{ parcel.acreage }} acres)?
+    <p class="text-gray-600 mb-4">Are you sure you want to delete <strong>{{ parcel.name }}</strong> ({{ parcel.acreage|land_area:units }})?
       Only the property line is removed; the fields inside it and all their records are not affected.</p>
 
     <form method="post" class="flex gap-3">

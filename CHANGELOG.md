@@ -13,6 +13,39 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-01
+
+### Added
+
+- **US or metric units, per farm.** Farm Settings has a new Measurement Units
+  choice covering land area, temperature, rainfall, wind, soil depth, animal
+  weight and building size, on every page and form. It only changes what you see
+  and type: stored data, CSV files and backups stay in their existing units, so
+  it can be switched back and forth safely. Units you type yourself, such as
+  bushels or bales, and market prices are left as they are. Existing farms start
+  on US.
+- Soil sample cards now show the sample depth.
+
+### Changed
+
+- On US farms, animal weights are now shown and entered in pounds (they were
+  always kilograms), and soil sample depth in inches.
+- Field and property dropdowns show just the name, without the acreage.
+- Backups now use format 3. Older backups still restore, and come back on US
+  units. A new backup can't be restored on an older FarmSteader, which will ask
+  you to upgrade first.
+- **Easier boundary drawing for fields and properties.** Corners are now small
+  rings with a centre dot instead of large white squares that hid the exact
+  point being placed. The map zooms three levels closer than before, and a new
+  full-screen button gives more room to work. A finished shape can be adjusted
+  directly: drag a corner to move it, drag the faint half-way handle to add a
+  corner, or right-click a corner to remove it.
+
+### Fixed
+
+- Dry days showed a dash for rainfall, and a temperature of exactly 0° showed as
+  a dash, because a real zero was treated as missing. They now show 0.
+
 ## [0.6.1] - 2026-10-28
 
 ### Fixed
@@ -225,10 +258,11 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.7.0...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
 [0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0
 [0.5.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.5.0
 [0.6.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.6.0
 [0.6.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.6.1
+[0.7.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.7.0

@@ -1,5 +1,6 @@
 from django import forms
 
+from apps.core.units import UnitFieldsMixin
 from apps.land.models import Field
 
 from .models import Animal, FeedLog, FeedStock, FeedType, FieldMovement, VetRecord
@@ -7,7 +8,9 @@ from .models import Animal, FeedLog, FeedStock, FeedType, FieldMovement, VetReco
 INPUT_CLASS = "w-full rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border"
 
 
-class AnimalForm(forms.ModelForm):
+class AnimalForm(UnitFieldsMixin, forms.ModelForm):
+    unit_fields = {"weight_kg": ("weight", "Weight")}
+
     class Meta:
         model = Animal
         fields = [

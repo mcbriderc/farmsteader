@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load units %}
 {% load static %}
 {% block title %}{{ field.name }} — FarmSteader{% endblock %}
 
@@ -23,8 +24,8 @@
 {# Summary cards #}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
-    <div class="text-xs text-gray-500 uppercase tracking-wide">Acreage</div>
-    <div class="text-xl font-bold text-gray-900 mt-1">{{ field.acreage }} ac</div>
+    <div class="text-xs text-gray-500 uppercase tracking-wide">{{ units.land_area_heading }}</div>
+    <div class="text-xl font-bold text-gray-900 mt-1">{{ field.acreage|land_area:units }}</div>
   </div>
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-4">
     <div class="text-xs text-gray-500 uppercase tracking-wide">Soil Type</div>
@@ -82,18 +83,18 @@
             <th class="px-4 py-2 text-left">Date</th>
             <th class="px-4 py-2 text-right">High</th>
             <th class="px-4 py-2 text-right">Low</th>
-            <th class="px-4 py-2 text-right">Precip (in)</th>
-            <th class="px-4 py-2 text-right">Wind (mph)</th>
+            <th class="px-4 py-2 text-right">Precip</th>
+            <th class="px-4 py-2 text-right">Wind</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
           {% for w in weather_forecast %}
           <tr class="hover:bg-gray-50">
             <td class="px-4 py-2 font-medium text-gray-900">{{ w.date }}</td>
-            <td class="px-4 py-2 text-right text-red-600">{{ w.temp_max_f|default:"—" }}°F</td>
-            <td class="px-4 py-2 text-right text-blue-600">{{ w.temp_min_f|default:"—" }}°F</td>
-            <td class="px-4 py-2 text-right">{{ w.precipitation_in|default:"—" }}</td>
-            <td class="px-4 py-2 text-right">{{ w.wind_speed_max_mph|default:"—" }}</td>
+            <td class="px-4 py-2 text-right text-red-600">{{ w.temp_max_c|temperature:units }}</td>
+            <td class="px-4 py-2 text-right text-blue-600">{{ w.temp_min_c|temperature:units }}</td>
+            <td class="px-4 py-2 text-right">{{ w.precipitation_mm|rainfall:units }}</td>
+            <td class="px-4 py-2 text-right">{{ w.wind_speed_max_kmh|wind_speed:units }}</td>
           </tr>
           {% endfor %}
           {% if weather_forecast %}
@@ -110,10 +111,10 @@
           {% for w in weather_history %}
           <tr class="hover:bg-gray-50">
             <td class="px-4 py-2 font-medium text-gray-900">{{ w.date }}</td>
-            <td class="px-4 py-2 text-right text-red-600">{{ w.temp_max_f|default:"—" }}°F</td>
-            <td class="px-4 py-2 text-right text-blue-600">{{ w.temp_min_f|default:"—" }}°F</td>
-            <td class="px-4 py-2 text-right">{{ w.precipitation_in|default:"—" }}</td>
-            <td class="px-4 py-2 text-right">{{ w.wind_speed_max_mph|default:"—" }}</td>
+            <td class="px-4 py-2 text-right text-red-600">{{ w.temp_max_c|temperature:units }}</td>
+            <td class="px-4 py-2 text-right text-blue-600">{{ w.temp_min_c|temperature:units }}</td>
+            <td class="px-4 py-2 text-right">{{ w.precipitation_mm|rainfall:units }}</td>
+            <td class="px-4 py-2 text-right">{{ w.wind_speed_max_kmh|wind_speed:units }}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -153,9 +154,7 @@
           <div><span class="text-gray-500">Silt %</span><p class="font-medium">{{ sample.silt_pct|default:"—" }}</p></div>
           <div><span class="text-gray-500">Clay %</span><p class="font-medium">{{ sample.clay_pct|default:"—" }}</p></div>
         </div>
-        {% if sample.texture_class %}
-        <p class="text-xs text-gray-500 mt-2">Texture: {{ sample.texture_class }}</p>
-        {% endif %}
+        <p class="text-xs text-gray-500 mt-2">Depth: {{ sample.depth_cm|soil_depth:units }}{% if sample.texture_class %} &middot; Texture: {{ sample.texture_class }}{% endif %}</p>
       </div>
       {% endfor %}
     </div>

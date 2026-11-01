@@ -1,11 +1,15 @@
 from django import forms
 
+from apps.core.units import UnitFieldsMixin
+
 from .models import Building, BuildingMaintenanceRecord
 
 INPUT_CLASS = "w-full rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border"
 
 
-class BuildingForm(forms.ModelForm):
+class BuildingForm(UnitFieldsMixin, forms.ModelForm):
+    unit_fields = {"square_feet": ("floor_area", "Floor area")}
+
     latitude = forms.FloatField(required=False, widget=forms.HiddenInput)
     longitude = forms.FloatField(required=False, widget=forms.HiddenInput)
 

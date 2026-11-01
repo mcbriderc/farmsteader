@@ -24,7 +24,7 @@ class Field(FarmOwnedModel, NotesMixin):
         ordering = ["name"]
 
     def __str__(self):
-        return f"{self.name} ({self.acreage} ac)"
+        return self.name
 
     def save(self, *args, **kwargs):
         if self.boundary:
@@ -61,7 +61,7 @@ class Parcel(FarmOwnedModel, NotesMixin):
         ordering = ["name"]
 
     def __str__(self):
-        return f"{self.name} ({self.acreage} ac)"
+        return self.name
 
     def save(self, *args, **kwargs):
         if self.boundary:
@@ -117,30 +117,6 @@ class WeatherCache(models.Model):
 
     def __str__(self):
         return f"{self.field.name} — {self.date}"
-
-    @property
-    def temp_max_f(self):
-        if self.temp_max_c is not None:
-            return round(self.temp_max_c * 9 / 5 + 32, 1)
-        return None
-
-    @property
-    def temp_min_f(self):
-        if self.temp_min_c is not None:
-            return round(self.temp_min_c * 9 / 5 + 32, 1)
-        return None
-
-    @property
-    def precipitation_in(self):
-        if self.precipitation_mm is not None:
-            return round(self.precipitation_mm / 25.4, 2)
-        return None
-
-    @property
-    def wind_speed_max_mph(self):
-        if self.wind_speed_max_kmh is not None:
-            return round(self.wind_speed_max_kmh / 1.60934, 1)
-        return None
 
 
 class SoilSample(FarmOwnedModel, NotesMixin):

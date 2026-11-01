@@ -246,3 +246,34 @@ html.dark .leaflet-draw-actions a {
   background-color: var(--color-gray-50);
   color: var(--color-gray-900);
 }
+
+/* Corner handles in the boundary editor (land/_boundary_editor_js.html): a
+   hollow ring with a centre dot, so the exact corner stays visible. They
+   replace leaflet-draw's opaque squares, and the colours are literal, not
+   theme variables, because they sit on map imagery in both themes. */
+.boundary-vertex {
+  border: 2px solid #fff;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.75), inset 0 0 0 1px rgb(0 0 0 / 0.75);
+  cursor: pointer;
+}
+.boundary-vertex::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 2px;
+  height: 2px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.75);
+}
+/* The boundary map's full-screen toggle. Above the sidebar; the inline 50vh
+   height on #map needs the !important. */
+.boundary-map-expanded {
+  position: fixed !important;
+  inset: 0;
+  z-index: 1100;
+  height: 100vh !important;
+  border-radius: 0 !important;
+}

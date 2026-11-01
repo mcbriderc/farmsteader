@@ -158,7 +158,23 @@ reproduced in `THIRD-PARTY-NOTICES.md`.
 
 User authentication and farm management. Uses a custom `FarmUser` model extending Django's `AbstractUser`. Each user can create or join multiple farms through `FarmMembership` with roles: **owner**, **manager**, **worker**, or **viewer**.
 
-**Key pages:** Login, Register (creates a user and their first farm), Farm Selector (switch between farms), Create Farm, Farm Settings (API keys and data source configuration, owner/manager only).
+**Key pages:** Login, Register (creates a user and their first farm), Farm Selector (switch between farms), Create Farm, Farm Settings (measurement units, API keys and data source configuration, owner/manager only).
+
+#### Measurement Units
+
+Each farm chooses US or metric under Farm Settings. The choice decides how these are shown and entered:
+
+| Quantity | Stored as | US | Metric |
+|---|---|---|---|
+| Land area | `acreage` (acres) | ac | ha |
+| Temperature | `temp_*_c` | °F | °C |
+| Rainfall | `precipitation_mm` | in | mm |
+| Wind | `wind_speed_max_kmh` | mph | km/h |
+| Soil sample depth | `depth_cm` | in | cm |
+| Animal weight | `weight_kg` | lb | kg |
+| Building floor area | `square_feet` | sq ft | m² |
+
+Stored values never change with the setting. CSV imports and exports always use the stored unit named by the column (`weight_kg` is kilograms on every farm), as do backups. Free-text units such as bushels or bales are not converted, and neither are market prices, which are quoted per bushel or hundredweight.
 
 ### Core (`/`)
 
@@ -199,6 +215,24 @@ The **Farm Map** (`/land/fields/map/`) draws properties as dashed outlines
 beneath the filled fields, and each layer can be toggled from the layer control.
 When drawing a field, your property lines are shown dashed as a guide; when
 drawing a property line, your fields are.
+
+**Drawing and adjusting a boundary.** Fields and properties share one editor
+(`land/_boundary_editor.html` + `_boundary_editor_js.html`). Corners are small
+rings with a centre dot, so the exact point stays visible. The map zooms to 22,
+three levels past where the street and satellite tiles stop (19), by scaling the
+last tiles up; scroll, + / -, and dragging all work mid-drawing, and a button at
+the top right makes the map full screen. A finished shape -- drawn, or loaded
+for editing -- is directly editable: drag a corner to move it, drag a faint
+half-way handle to add one, right-click (long-press on touch) a corner to remove
+it. A plain click deliberately does nothing, because leaflet-draw's default --
+delete on click, no undo -- was too easy to hit while aiming to drag. Rectangles
+become four ordinary corners, so they adjust the same way.
+
+Two leaflet-draw defaults are overridden to get there. Leaflet 1.9 reports every
+browser with pointer events as a touch device, so leaflet-draw swaps in 20px
+opaque "touch" squares even under a mouse; the editor sets both its `icon` and
+`touchIcon` to the ring. And the edit (pencil) toolbar button is gone, since
+editing is always on. `tests/test_boundary_editor.py` pins these.
 
 Field and property acreage both come from one helper (`apps/land/geo.py`,
 `acreage_of`), so the two can never be measured differently. Boundaries that
@@ -315,7 +349,7 @@ Export supports CSV and XLSX formats. Import performs a dry-run validation first
 | `FarmUser` | Extends AbstractUser + `phone` |
 | `Farm` | `name`, `address`, `members` (M2M via FarmMembership) |
 | `FarmMembership` | `user`, `farm`, `role` (owner/manager/worker/viewer) |
-| `FarmSettings` | `farm` (OneToOne), `usda_nass_api_key`, `weather_enabled`, `soil_enabled`, `crop_prices_enabled`, `visible_tickers` (JSONField — list of CME ticker strings to show on dashboard; empty = show all) |
+| `FarmSettings` | `farm` (OneToOne), `usda_nass_api_key`, `weather_enabled`, `soil_enabled`, `crop_prices_enabled`, `unit_system` (`us`/`metric`, default `us`; see [Measurement Units](#measurement-units)), `visible_tickers` (JSONField — list of CME ticker strings to show on dashboard; empty = show all) |
 
 ### Land
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load units %}
 {% block title %}Property Boundaries — FarmSteader{% endblock %}
 
 {% block content %}
@@ -6,7 +7,7 @@
   <div>
     <h1 class="text-2xl font-bold text-gray-900">Property Boundaries</h1>
     <p class="text-gray-500 text-sm mt-1">
-      {{ parcels|length }} propert{{ parcels|length|pluralize:"y,ies" }}{% if parcels %} &middot; {{ total_acreage }} acres total{% endif %}
+      {{ parcels|length }} propert{{ parcels|length|pluralize:"y,ies" }}{% if parcels %} &middot; {{ total_acreage|land_area:units }} total{% endif %}
     </p>
   </div>
   <div class="flex gap-2">
@@ -31,8 +32,8 @@
     </div>
     <div class="grid grid-cols-2 gap-2 text-sm">
       <div>
-        <span class="text-gray-500">Acreage</span>
-        <p class="font-medium text-gray-900">{{ parcel.acreage }} ac</p>
+        <span class="text-gray-500">{{ units.land_area_heading }}</span>
+        <p class="font-medium text-gray-900">{{ parcel.acreage|land_area:units }}</p>
       </div>
       <div>
         <span class="text-gray-500">Parcel Number</span>
@@ -43,7 +44,7 @@
   {% empty %}
   <div class="col-span-full text-center py-12 text-gray-500">
     <p class="text-lg">No property boundaries yet.</p>
-    <p class="text-sm mt-1">Trace your property lines to see total acreage and how much of it your fields cover.</p>
+    <p class="text-sm mt-1">Trace your property lines to see total area and how much of it your fields cover.</p>
     <a href="{% url 'land:parcel_create' %}" class="text-farm-600 hover:text-farm-700 font-medium mt-2 inline-block">Draw your first property line</a>
   </div>
   {% endfor %}

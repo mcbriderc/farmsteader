@@ -2,6 +2,8 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
+from apps.core.units import units_for
+
 from .forms import AnimalForm, FeedLogForm, FeedStockForm, FeedTypeForm, FieldMovementForm, VetRecordForm
 from .models import Animal, FeedStock, FeedType, VetRecord
 
@@ -41,7 +43,7 @@ def animal_list(request):
 @require_http_methods(["GET", "POST"])
 def animal_create(request):
     if request.method == "POST":
-        form = AnimalForm(request.POST, request.FILES, farm=request.farm)
+        form = AnimalForm(request.POST, request.FILES, farm=request.farm, units=units_for(request.farm))
         if form.is_valid():
             animal = form.save(commit=False)
             animal.farm = request.farm
@@ -49,7 +51,7 @@ def animal_create(request):
             messages.success(request, f'Animal "{animal}" added.')
             return redirect(ANIMAL_DETAIL, pk=animal.pk)
     else:
-        form = AnimalForm(farm=request.farm)
+        form = AnimalForm(farm=request.farm, units=units_for(request.farm))
 
     return render(request, "livestock/animal_form.html", {"form": form})
 
@@ -59,13 +61,13 @@ def animal_edit(request, pk):
     animal = get_object_or_404(Animal, pk=pk, farm=request.farm)
 
     if request.method == "POST":
-        form = AnimalForm(request.POST, request.FILES, instance=animal, farm=request.farm)
+        form = AnimalForm(request.POST, request.FILES, instance=animal, farm=request.farm, units=units_for(request.farm))
         if form.is_valid():
             form.save()
             messages.success(request, f'Animal "{animal}" updated.')
             return redirect(ANIMAL_DETAIL, pk=animal.pk)
     else:
-        form = AnimalForm(instance=animal, farm=request.farm)
+        form = AnimalForm(instance=animal, farm=request.farm, units=units_for(request.farm))
 
     return render(request, "livestock/animal_form.html", {"form": form, "animal": animal, "editing": True})
 

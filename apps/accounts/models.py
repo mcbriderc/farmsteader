@@ -1,6 +1,8 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from apps.core.units import UnitSystem
+
 
 class FarmUser(AbstractUser):
     """Custom user model for FarmSteader."""
@@ -74,7 +76,12 @@ class FarmSettings(models.Model):
     crop_prices_enabled = models.BooleanField(default=False, verbose_name="Crop price sync",
         help_text="Fetch crop prices from USDA NASS (requires API key above)")
 
-    # Dashboard display preferences
+    # Display preferences
+    unit_system = models.CharField(
+        max_length=10, choices=UnitSystem.choices, default=UnitSystem.US,
+        verbose_name="Measurement units",
+        help_text="How measurements are shown and entered. Stored data is never changed by this.",
+    )
     visible_tickers = models.JSONField(
         default=list, blank=True,
         verbose_name="Visible commodity prices",

@@ -209,9 +209,9 @@ class TestBackups:
         assert any("older FarmSteader" in w for w in report.warnings)
 
     def test_a_new_backup_is_refused_by_an_older_format(self, farm, tmp_path):
-        """Format 2 tells a 0.5.0 install (which reads format 1) to upgrade first."""
+        """A format above 1 tells a 0.5.0 install (which reads format 1) to upgrade first."""
         manifest = export_farm(farm, tmp_path / "b.zip")
-        assert manifest["format_version"] == 2
+        assert manifest["format_version"] > 1
 
 
 @pytest.mark.django_db

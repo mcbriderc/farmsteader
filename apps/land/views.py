@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from apps.accounts.mixins import FarmAccessMixin
+from apps.core.units import units_for
 
 from .forms import CropRecordForm, FieldForm, ParcelForm, SoilSampleForm
 from .models import CropRecord, Field, Parcel, SoilSample
@@ -19,7 +20,7 @@ FIELD_DETAIL = "land:field_detail"
 PARCEL_DETAIL = "land:parcel_detail"
 
 
-def _feature(obj, url_name):
+def _feature(obj, url_name, units):
     """One GeoJSON Feature for a field or parcel.
 
     Names are user-entered: the map builds its popups from these properties
@@ -31,7 +32,7 @@ def _feature(obj, url_name):
         "properties": {
             "id": obj.id,
             "name": obj.name,
-            "acreage": float(obj.acreage),
+            "area": units.format("land_area", obj.acreage),
             "color": obj.color,
             "url": reverse(url_name, args=[obj.pk]),
         },
@@ -55,9 +56,10 @@ def field_map(request):
 def field_geojson(request):
     """GeoJSON FeatureCollection of all farm fields."""
     fields = Field.objects.filter(farm=request.farm)
+    units = units_for(request.farm)
     return JsonResponse({
         "type": "FeatureCollection",
-        "features": [_feature(field, FIELD_DETAIL) for field in fields],
+        "features": [_feature(field, FIELD_DETAIL, units) for field in fields],
     })
 
 
@@ -72,7 +74,7 @@ def field_create(request):
             # Trigger background data fetches
             sync_weather_for_field.delay(field.id)
             sync_soil_data_for_field.delay(field.id)
-            messages.success(request, f'Field "{field.name}" created ({field.acreage} acres).')
+            messages.success(request, f'Field "{field.name}" created ({units_for(request.farm).format("land_area", field.acreage)}).')
             return redirect(FIELD_DETAIL, pk=field.pk)
     else:
         form = FieldForm()
@@ -226,7 +228,7 @@ def soil_sample_create(request, field_pk):
     field = get_object_or_404(Field, pk=field_pk, farm=request.farm)
 
     if request.method == "POST":
-        form = SoilSampleForm(request.POST)
+        form = SoilSampleForm(request.POST, units=units_for(request.farm))
         if form.is_valid():
             sample = form.save(commit=False)
             sample.farm = request.farm
@@ -235,7 +237,7 @@ def soil_sample_create(request, field_pk):
             messages.success(request, f"Soil sample added for {field.name}.")
             return redirect(FIELD_DETAIL, pk=field.pk)
     else:
-        form = SoilSampleForm()
+        form = SoilSampleForm(units=units_for(request.farm))
 
     return render(request, "land/soil_sample_form.html", {"form": form, "field": field})
 
@@ -255,9 +257,10 @@ def parcel_list(request):
 def parcel_geojson(request):
     """GeoJSON FeatureCollection of the farm's property boundaries."""
     parcels = Parcel.objects.filter(farm=request.farm)
+    units = units_for(request.farm)
     return JsonResponse({
         "type": "FeatureCollection",
-        "features": [_feature(parcel, PARCEL_DETAIL) for parcel in parcels],
+        "features": [_feature(parcel, PARCEL_DETAIL, units) for parcel in parcels],
     })
 
 
@@ -269,7 +272,7 @@ def parcel_create(request):
             parcel = form.save(commit=False)
             parcel.farm = request.farm
             parcel.save()
-            messages.success(request, f'Property "{parcel.name}" added ({parcel.acreage} acres).')
+            messages.success(request, f'Property "{parcel.name}" added ({units_for(request.farm).format("land_area", parcel.acreage)}).')
             return redirect(PARCEL_DETAIL, pk=parcel.pk)
     else:
         form = ParcelForm()
@@ -288,7 +291,7 @@ def parcel_detail(request, pk):
         # Rendered with |json_script, which escapes </script> in user-entered names.
         "fields_fc": {
             "type": "FeatureCollection",
-            "features": [_feature(field, FIELD_DETAIL) for field, _ in rows],
+            "features": [_feature(field, FIELD_DETAIL, units_for(request.farm)) for field, _ in rows],
         },
     })
 

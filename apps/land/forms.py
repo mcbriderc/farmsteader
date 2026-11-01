@@ -1,5 +1,7 @@
 from django import forms
 
+from apps.core.units import UnitFieldsMixin
+
 from .models import CropRecord, Field, Parcel, SoilSample
 
 _INPUT_CLASSES = "w-full rounded-lg border-gray-300 shadow-sm text-sm px-3 py-2 border"
@@ -88,7 +90,9 @@ class CropRecordForm(forms.ModelForm):
                 field.widget.attrs["class"] = _INPUT_CLASSES
 
 
-class SoilSampleForm(forms.ModelForm):
+class SoilSampleForm(UnitFieldsMixin, forms.ModelForm):
+    unit_fields = {"depth_cm": ("soil_depth", "Sample depth")}
+
     class Meta:
         model = SoilSample
         fields = ["sample_date", "depth_cm", "ph", "organic_carbon_pct", "nitrogen_ppm",

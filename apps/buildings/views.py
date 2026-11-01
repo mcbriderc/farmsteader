@@ -5,6 +5,8 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
+from apps.core.units import units_for
+
 from .forms import BuildingForm, BuildingMaintenanceForm
 from .models import Building, BuildingMaintenanceRecord
 
@@ -38,7 +40,7 @@ def building_geojson(request):
 @require_http_methods(["GET", "POST"])
 def building_create(request):
     if request.method == "POST":
-        form = BuildingForm(request.POST, request.FILES)
+        form = BuildingForm(request.POST, request.FILES, units=units_for(request.farm))
         if form.is_valid():
             building = form.save(commit=False)
             building.farm = request.farm
@@ -46,7 +48,7 @@ def building_create(request):
             messages.success(request, f'Building "{building.name}" added.')
             return redirect(BUILDING_DETAIL, pk=building.pk)
     else:
-        form = BuildingForm()
+        form = BuildingForm(units=units_for(request.farm))
     return render(request, "buildings/building_form.html", {"form": form})
 
 
@@ -54,13 +56,13 @@ def building_create(request):
 def building_edit(request, pk):
     building = get_object_or_404(Building, pk=pk, farm=request.farm)
     if request.method == "POST":
-        form = BuildingForm(request.POST, request.FILES, instance=building)
+        form = BuildingForm(request.POST, request.FILES, instance=building, units=units_for(request.farm))
         if form.is_valid():
             form.save()
             messages.success(request, f'Building "{building.name}" updated.')
             return redirect(BUILDING_DETAIL, pk=building.pk)
     else:
-        form = BuildingForm(instance=building)
+        form = BuildingForm(instance=building, units=units_for(request.farm))
     return render(request, "buildings/building_form.html", {"form": form, "building": building, "editing": True})
 
 

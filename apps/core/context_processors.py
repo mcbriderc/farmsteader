@@ -1,5 +1,7 @@
 from django.conf import settings
 
+from .units import units_for
+
 
 def app_meta(request):
     """Version and source-code URL, for the sidebar footer.
@@ -19,3 +21,8 @@ def app_meta(request):
         "app_version": settings.APP_VERSION,
         "source_url": settings.FARMSTEADER_SOURCE_URL,
     }
+
+
+def units(request):
+    """The current farm's measurement units, for the filters in templatetags/units.py."""
+    return {"units": units_for(getattr(request, "farm", None))}

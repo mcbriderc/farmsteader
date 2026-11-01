@@ -41,6 +41,7 @@ class FarmSettingsForm(forms.ModelForm):
     class Meta:
         model = FarmSettings
         fields = [
+            "unit_system",
             "usda_nass_api_key",
             "weather_enabled",
             "soil_enabled",
