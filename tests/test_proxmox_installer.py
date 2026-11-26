@@ -55,7 +55,7 @@ def test_default_install_creates_the_expected_container():
 
     assert result.returncode == 0, result.stderr
     assert pct_create_args(result) == [
-        "pct", "create", "105",
+        "pct", "create", "9999",
         "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst",
         "--hostname", "farmsteader",
         "--cores", "2",
@@ -104,7 +104,7 @@ def test_a_container_that_never_comes_online_is_removed():
     output = result.stdout + result.stderr
     assert result.returncode == 1, output
     assert "has no network after 60s" in output
-    assert "removed container 105" in output
+    assert "removed container 9999" in output
 
 
 def test_template_store_and_disk_store_are_chosen_separately():
@@ -164,3 +164,108 @@ def test_uses_the_shared_installer_rather_than_its_own_copy():
     assert "farmsteader-deploy-install.sh /root/farmsteader-deploy-install.sh" in output
     container_side = (REPO / "install" / "farmsteader-install.sh").read_text()
     assert "bash /root/farmsteader-deploy-install.sh" in container_side
+
+
+def test_removal_prompt_defaults_to_keeping_the_container():
+    """Enter on "Remove container N?" must keep it, not destroy the evidence.
+
+    Runs offer_removal on its own: the full interactive flow needs real answers
+    to every menu, which the whiptail stub cannot give.
+    """
+    result = subprocess.run(
+        ["bash", "-c", 'source misc/build.func; CT_CREATED=1; CTID=9999; offer_removal'],
+        cwd=REPO,
+        env={"PATH": os.environ["PATH"], "FARMSTEADER_DRY_RUN": "1", "FARMSTEADER_DRY_RUN_WT_RC": "1"},
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    output = result.stdout + result.stderr
+    prompt = next(line for line in output.splitlines() if "--yesno" in line and "Remove container" in line)
+    assert prompt.index("--defaultno") < prompt.index("--yesno")
+    assert "container 9999 kept for inspection" in output
+    assert "pct destroy" not in output
+
+
+def test_advanced_network_settings_reach_pct_create():
+    result = run_ct(
+        FS_CT_DEFAULTS="1",
+        MTU="9000",
+        NET6="2001:db8::40/64",
+        GATE6="2001:db8::1",
+        DNS_SERVER="192.168.1.2",
+        DNS_SEARCH="farm.lan",
+    )
+
+    args = pct_create_args(result)
+    assert args[args.index("--net0") + 1] == (
+        "name=eth0,bridge=vmbr0,ip=dhcp,mtu=9000,ip6=2001:db8::40/64,gw6=2001:db8::1"
+    )
+    assert args[args.index("--nameserver") + 1] == "192.168.1.2"
+    assert args[args.index("--searchdomain") + 1] == "farm.lan"
+
+
+def test_advanced_settings_are_absent_unless_asked_for():
+    """Blank means Proxmox's own default (the host's DNS, the bridge's MTU, no IPv6)."""
+    args = pct_create_args(run_ct(FS_CT_DEFAULTS="1"))
+
+    for flag in ("--nameserver", "--searchdomain", "--ssh-public-keys"):
+        assert flag not in args
+    assert "mtu=" not in args[args.index("--net0") + 1]
+    assert "ip6=" not in args[args.index("--net0") + 1]
+
+
+@pytest.mark.parametrize("net6", ["auto", "dhcp"])
+def test_dynamic_ipv6_needs_no_gateway(net6):
+    args = pct_create_args(run_ct(FS_CT_DEFAULTS="1", NET6=net6))
+    assert args[args.index("--net0") + 1].endswith(f",ip6={net6}")
+
+
+def test_ssh_key_can_be_pasted(tmp_path):
+    result = run_ct(FS_CT_DEFAULTS="1", SSH_KEY="ssh-ed25519 AAAAC3Nza me@laptop")
+
+    args = pct_create_args(result)
+    assert args[args.index("--ssh-public-keys") + 1].endswith("/ssh_authorized_keys")
+
+
+def test_ssh_key_can_be_a_file_on_the_node(tmp_path):
+    key = tmp_path / "id_ed25519.pub"
+    key.write_text("ssh-ed25519 AAAAC3Nza me@laptop\n")
+
+    args = pct_create_args(run_ct(FS_CT_DEFAULTS="1", SSH_KEY=str(key)))
+    assert args[args.index("--ssh-public-keys") + 1] == str(key)
+
+
+@pytest.mark.parametrize(
+    ("env", "message"),
+    [
+        ({"MTU": "jumbo"}, "MTU 'jumbo' is not a number from 576 to 65520"),
+        ({"MTU": "100"}, "MTU '100' is not a number"),
+        ({"NET6": "2001:db8::40"}, "is not 'auto', 'dhcp' or an address in CIDR form"),
+        ({"NET6": "auto", "GATE6": "2001:db8::1"}, "an IPv6 gateway only applies to a static"),
+        ({"SSH_KEY": "not-a-key"}, "is neither a file on this node nor a public key"),
+    ],
+)
+def test_bad_advanced_settings_stop_before_anything_is_created(env, message):
+    result = run_ct(FS_CT_DEFAULTS="1", **env)
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert message in output
+    assert "pct create" not in output
+    assert "pveam download" not in output
+
+
+def test_a_private_key_is_refused(tmp_path):
+    """Naming id_ed25519 instead of id_ed25519.pub is the easy mistake."""
+    key = tmp_path / "id_ed25519"
+    key.write_text("-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----\n")
+
+    result = run_ct(FS_CT_DEFAULTS="1", SSH_KEY=str(key))
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "does not hold a public key -- was that the private key?" in output
+    assert "pct create" not in output

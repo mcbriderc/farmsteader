@@ -27,6 +27,15 @@ def migrate(targets):
     return executor.loader.project_state(targets).apps
 
 
+def migrate_to_latest():
+    """Every app's newest migration. Stopping at AFTER would leave later migrations
+    unapplied, and the next test's serialized_rollback reloads rows shaped for the
+    full schema (e.g. crop series longer than crops 0005's 20-character usda_code)."""
+    executor = MigrationExecutor(connection)
+    executor.loader.build_graph()
+    executor.migrate(executor.loader.graph.leaf_nodes())
+
+
 # Real migrations need a transactional database, which is emptied afterwards --
 # including rows seeded by migrations, such as the crop catalog other tests use.
 # serialized_rollback puts them back.
@@ -84,7 +93,7 @@ def old_world():
         }
         yield apps, farm, rec, harvests
     finally:
-        migrate(AFTER)
+        migrate_to_latest()
 
 
 def test_forward_migration(old_world):

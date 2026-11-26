@@ -8,7 +8,7 @@
 # to the new version, commits, and tags.
 #
 # It never pushes. Pushing is what triggers the release workflow, which publishes
-# to Forgejo and mirrors to a public GitHub repo -- an irreversible, outward
+# to Forgejo and a snapshot to the public GitHub repo -- an irreversible, outward
 # facing act that should be a deliberate second command, not a side effect of
 # running a version-bump helper. The push command is printed at the end.
 set -Eeuo pipefail

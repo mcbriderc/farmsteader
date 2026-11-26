@@ -43,7 +43,8 @@ FORMAT = "farmsteader-backup"
 #:   1 -- original format (<= 0.5.0)
 #:   2 -- plantings link to the crop catalog; their yields live on harvests (0.6.0)
 #:   3 -- farm settings carry a measurement unit system (0.7.0)
-FORMAT_VERSION = 3
+#:   4 -- farm settings carry a state, for state crop prices (0.10.0)
+FORMAT_VERSION = 4
 
 #: Written on harvests created from a planting's old yield fields. Same text as
 #: the crops 0005 migration uses for the same conversion.
@@ -349,6 +350,8 @@ def _upgrade_archive(manifest, data, warnings):
         _upgrade_v1_to_v2(manifest, data, warnings)
     if manifest.get("format_version", FORMAT_VERSION) < 3:
         _upgrade_v2_to_v3(manifest, data)
+    if manifest.get("format_version", FORMAT_VERSION) < 4:
+        _upgrade_v3_to_v4(manifest, data)
 
 
 def _upgrade_v1_to_v2(manifest, data, warnings):
@@ -433,6 +436,16 @@ def _upgrade_v2_to_v3(manifest, data):
     fields = manifest.setdefault("schema", {}).get(label)
     if fields is not None and "unit_system" not in fields:
         fields.append("unit_system")
+
+
+def _upgrade_v3_to_v4(manifest, data):
+    """Farms backed up before the state setting existed restore with no state chosen."""
+    label = FarmSettings._meta.label
+    for row in data.get(label) or []:
+        row.setdefault("state", "")
+    fields = manifest.setdefault("schema", {}).get(label)
+    if fields is not None and "state" not in fields:
+        fields.append("state")
 
 
 def _reconcile_schema(schema, errors, warnings):

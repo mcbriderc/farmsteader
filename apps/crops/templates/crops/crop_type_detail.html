@@ -14,28 +14,36 @@
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
   {# Market Prices #}
   <div class="bg-surface rounded-xl shadow-sm border border-gray-200 p-5">
-    <h2 class="font-semibold text-gray-900 mb-3">Market Prices</h2>
-    {% if prices %}
+    <h2 class="font-semibold text-gray-900 mb-1">Market Prices</h2>
+    <p class="text-xs text-gray-400 mb-3">USDA NASS average price received by farmers, by marketing year.</p>
+    {% if price_rows %}
     <table class="w-full text-sm">
       <thead class="bg-gray-50 text-gray-500 uppercase text-xs">
         <tr>
           <th class="px-3 py-2 text-left">Year</th>
-          <th class="px-3 py-2 text-left">State</th>
-          <th class="px-3 py-2 text-right">Price</th>
+          <th class="px-3 py-2 text-right">National</th>
+          {% if state %}<th class="px-3 py-2 text-right">{{ state_name }}</th>{% endif %}
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
-        {% for p in prices %}
+        {% for year, national, local in price_rows %}
         <tr class="hover:bg-gray-50">
-          <td class="px-3 py-2 font-medium">{{ p.year }}</td>
-          <td class="px-3 py-2">{{ p.state }}</td>
-          <td class="px-3 py-2 text-right">${{ p.price_per_unit }} {{ p.unit }}</td>
+          <td class="px-3 py-2 font-medium">{{ year }}</td>
+          <td class="px-3 py-2 text-right">{% if national %}{{ national.price_label }}{% else %}&mdash;{% endif %}</td>
+          {% if state %}<td class="px-3 py-2 text-right">{% if local %}{{ local.price_label }}{% else %}&mdash;{% endif %}</td>{% endif %}
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% if not state %}
+    <p class="text-xs text-gray-500 mt-3">Choose your state in <a href="{% url 'accounts:farm_settings' %}" class="text-farm-600 hover:underline">Farm Settings</a> to see local prices next to the national average.</p>
+    {% elif not state_has_prices %}
+    <p class="text-xs text-gray-500 mt-3">USDA publishes no {{ state_name }} price for this crop, so only the national average is shown.</p>
+    {% endif %}
+    {% elif crop_type.usda_code %}
+    <p class="text-sm text-gray-500">No price data yet. Prices sync daily from USDA NASS once a farm adds a USDA key and turns on Crop price sync in <a href="{% url 'accounts:farm_settings' %}" class="text-farm-600 hover:underline">Farm Settings</a>.</p>
     {% else %}
-    <p class="text-sm text-gray-500">No price data. Prices sync daily from USDA NASS (requires API key).</p>
+    <p class="text-sm text-gray-500">This crop has no USDA series, so it has no market prices.</p>
     {% endif %}
   </div>
 

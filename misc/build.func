@@ -89,8 +89,11 @@ offer_removal() {
     [ "$CT_CREATED" = 1 ] && [ -n "${CTID:-}" ] || return 0
     [ "${BASH_SUBSHELL:-0}" -gt 0 ] && return 0
     CT_CREATED=0   # once only, whichever of die/error_handler gets here first
+    # No is the default: Enter on a failed install keeps the container (and the
+    # evidence of what went wrong) rather than destroying it. An unattended run
+    # removes it, since nobody is there to inspect it and it holds the ID.
     if [ "${FS_CT_DEFAULTS:-0}" = 1 ] || wt_yesno "Installation failed" \
-        "Container $CTID was created but FarmSteader did not install.\n\nRemove container $CTID?"; then
+        "Container $CTID was created but FarmSteader did not install.\n\nRemove container $CTID?" no; then
         pct stop "$CTID" >/dev/null 2>&1 || true
         pct destroy "$CTID" >/dev/null 2>&1 && msg_ok "removed container $CTID"
     else
@@ -162,10 +165,12 @@ wt_menu() {  # title prompt tag item [tag item...]
     printf '%s\n' "$out"
 }
 
-# yes -> 0, no -> 1, Esc -> cancel the installer.
-wt_yesno() {  # title prompt
-    local rc=0
-    whiptail --backtitle "$WT_TITLE" --title "$1" --yesno "$2" 12 68 || rc=$?
+# yes -> 0, no -> 1, Esc -> cancel the installer. A third argument of "no"
+# makes No the highlighted button, for prompts where Enter must be the safe answer.
+wt_yesno() {  # title prompt [no]
+    local rc=0 defaultno=()
+    [ "${3:-}" = no ] && defaultno=(--defaultno)
+    whiptail --backtitle "$WT_TITLE" --title "$1" "${defaultno[@]}" --yesno "$2" 12 68 || rc=$?
     [ "$rc" = 255 ] && wt_cancelled
     return "$rc"
 }
@@ -216,7 +221,9 @@ farmsteader_containers() {  # prints "ctid name" for CTs tagged farmsteader
 if [ "${FARMSTEADER_DRY_RUN:-0}" = 1 ]; then
     _stub() { printf '    [dry-run] %s\n' "$*" >&2; }
     pveversion() { echo "pve-manager/9.0.10/deadbeef (running kernel: 6.14.8-2-pve)"; }
-    pvesh() { [ "$*" = "get /cluster/nextid" ] && echo 105; }
+    # 9999, not a plausible next ID: dry-run output says "removed container N",
+    # and N must never look like a real container on the reader's node.
+    pvesh() { [ "$*" = "get /cluster/nextid" ] && echo 9999; }
     pvesm() {
         case "$*" in
             "status -content rootdir")

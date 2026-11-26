@@ -28,7 +28,8 @@ Usage: install.sh [options]
   --admin-password PASS    admin password (default: generated, saved to /root/farmsteader.creds)
   --allowed-hosts LIST     comma-separated hostnames/IPs the site answers to
                            (default: localhost, this hostname, and its IPv4 addresses)
-  --usda-key KEY           USDA NASS API key for crop price sync
+  --usda-key KEY           USDA NASS API key for crop price sync (optional; it can
+                           also be added later in Farm Settings)
   --sentry-dsn DSN         report errors to Sentry
   --no-nginx               do not install nginx; gunicorn listens on /run/farmsteader/gunicorn.sock
   --no-backups             do not install the nightly database backup

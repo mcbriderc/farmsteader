@@ -68,12 +68,16 @@
   {# Weather tab #}
   <div x-show="tab === 'weather'">
     <div class="flex justify-end mb-3">
+      {% if sources.weather_enabled %}
       <form method="post" action="{% url 'land:field_sync_weather' field.pk %}">
         {% csrf_token %}
         <button type="submit" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-1.5 px-4 rounded-lg text-sm transition">
           &#8635; Sync Now
         </button>
       </form>
+      {% else %}
+      <p class="text-sm text-gray-500">Weather sync is off in <a href="{% url 'accounts:farm_settings' %}" class="text-farm-600 hover:underline">Farm Settings</a>.</p>
+      {% endif %}
     </div>
     {% if weather_forecast or weather_history %}
     <div class="overflow-x-auto">
@@ -128,12 +132,16 @@
   {# Soil tab #}
   <div x-show="tab === 'soil'" style="display:none;">
     <div class="flex justify-end gap-2 mb-3">
+      {% if sources.soil_enabled %}
       <form method="post" action="{% url 'land:field_sync_soil' field.pk %}">
         {% csrf_token %}
         <button type="submit" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-1.5 px-4 rounded-lg text-sm transition">
           &#8635; Sync Soil Now
         </button>
       </form>
+      {% else %}
+      <p class="text-sm text-gray-500 self-center">Soil data sync is off in <a href="{% url 'accounts:farm_settings' %}" class="text-farm-600 hover:underline">Farm Settings</a>.</p>
+      {% endif %}
       <a href="{% url 'land:soil_sample_create' field.pk %}" class="bg-accent hover:bg-accent-hover text-white font-medium py-1.5 px-4 rounded-lg text-sm transition">
         + Add Soil Sample
       </a>

@@ -31,7 +31,7 @@ FarmSteader provides a unified platform for managing all aspects of farm operati
 
 - **Land & Fields** -- Draw field boundaries and property lines on a map, auto-calculate acreage, see how much of each property is in fields, track crop rotations, and sync weather and soil data from public APIs.
 - **Livestock** -- Ear tag registry, species/breed tracking, breeding lineage (sire/dam), veterinary records, immunization schedules, field-to-field movement history with days-in-field tracking, and feed inventory management with full feed type CRUD (pre-seeded with 29 common feed types) and per-animal feeding logs.
-- **Crops** -- Global crop type catalog with USDA commodity codes and full CRUD management (pre-seeded with 19 common US crop types), harvest records with yield/quality/revenue, and daily market price sync from USDA NASS.
+- **Crops** -- Global crop type catalog with USDA commodity codes and full CRUD management (pre-seeded with 19 common US crop types), harvest records with yield/quality/revenue, and daily USDA NASS market prices, national and for the farm's state.
 - **Equipment** -- Track tractors, implements, and vehicles with hour meters, maintenance logs, and next-service scheduling.
 - **Buildings** -- Map building locations (barns, sheds, greenhouses), track assessed values, insurance, property taxes, and maintenance.
 - **Consumables** -- Inventory management for feed, seed, fuel, chemicals, and medical supplies with reorder alerts, transaction history, and full consumable type CRUD (pre-seeded with 34 common types).
@@ -160,6 +160,15 @@ reproduced in `THIRD-PARTY-NOTICES.md`.
 User authentication and farm management. Uses a custom `FarmUser` model extending Django's `AbstractUser`. Each user can create or join multiple farms through `FarmMembership` with roles: **owner**, **manager**, **worker**, or **viewer**.
 
 **Key pages:** Login, Register (creates a user and their first farm), Farm Selector (switch between farms), Create Farm, Farm Settings (measurement units, API keys and data source configuration, owner/manager only).
+
+**Data sources** in Farm Settings decide what the background syncs fetch for that farm. With
+**Weather sync** off, the farm's fields get no Open-Meteo forecasts or history (scheduled, on
+field save, or from the Sync Now buttons, which are replaced by a note). **Soil data sync** does the
+same for SoilGrids. **Crop price sync** needs the USDA NASS key in the same page; prices are public
+and shared by every farm on the install, so one farm's key fetches them for all (the oldest such
+farm's key is used, with `USDA_NASS_API_KEY` in the server config as the fallback). Saving a key
+with crop price sync on starts a fetch straight away instead of waiting for the nightly run. The
+saved key is never shown again: leave the box blank to keep it, or tick **Remove the saved key**.
 
 #### Measurement Units
 
@@ -291,9 +300,26 @@ existing harvests are linked to a planting only when exactly one planting fits
 unlinked for you to link from the harvest form. The same rules apply to backups
 and CSV files made by older versions.
 
-**Crop Type Management:** Crop types can be created, edited, and deleted directly from the UI at `/crops/types/`. A seed data migration pre-populates 19 common US crop types (grains, oilseeds, forages, vegetables, fiber, and pulses) with their USDA commodity codes, categories, and default units. Users can add custom crop types or remove unneeded ones. A crop type that any planting or harvest uses -- on *any* farm, since the catalog is shared by every farm on an install -- cannot be deleted; the page says how many plantings and harvests use it.
+**Crop Type Management:** Crop types can be created, edited, and deleted directly from the UI at `/crops/types/`. A seed data migration pre-populates 19 common US crop types (grains, oilseeds, forages, vegetables, fiber, and pulses) with their USDA price series, categories, and default units. Users can add custom crop types or remove unneeded ones. A crop type that any planting or harvest uses -- on *any* farm, since the catalog is shared by every farm on an install -- cannot be deleted; the page says how many plantings and harvests use it.
 
-A daily Celery task syncs market prices from the USDA NASS QuickStats API, storing price-per-unit by crop type, year, and state.
+A daily Celery task (`sync_crop_prices`, logic in `apps/crops/prices.py`) syncs the USDA NASS
+"price received" -- the average price farmers were paid, by marketing year -- for the last ten
+years, nationally and for every state USDA reports. Each crop type's **USDA series** field names
+what to fetch: the part of a QuickStats description before " - PRICE RECEIVED", such as
+`CORN, GRAIN`, `HAY, ALFALFA` or `WHEAT, WINTER`. A bare commodity (`SOYBEANS`) works when USDA has
+only one series for it; a blank series means no prices (corn silage, which USDA does not price).
+Exactly one price is kept per crop, state and year, and each run replaces a crop's prices outright,
+so editing a series drops the old figures. If USDA cannot be reached the stored prices stay.
+
+Prices are public, so they are stored once for the whole install. Each crop type's page shows the
+national price and, when the farm has chosen a **State** in Farm Settings, that state's price
+beside it. USDA's state coverage has gaps (it reports hay for 49 states but canola for 9), so a
+state column can be partly or entirely empty; the page says so.
+
+Before 0.10.0 the sync asked USDA by crop *name*, which matched nothing for 9 of the 19 seeded
+crops (corn, wheat, hay, sorghum, dry beans, sunflowers), and saved every series USDA returned on
+top of one another. The crops `0008` migration gives the seeded crops their series; a catalog entry
+whose name or code had been edited is left alone.
 
 A separate daily task (`sync_commodity_prices`) fetches CME futures prices for 12 contracts via **yfinance** — corn, soybeans, CBOT wheat, KC HRW wheat, oats, soybean meal, soybean oil, live cattle, feeder cattle, lean hogs, Class III milk, and cotton. Tickers and unit/divisor config live in `apps/crops/constants.py`. Prices are stored in the global `CommodityPrice` model and displayed on the dashboard. Users control which contracts appear via Farm Settings → Market Prices (select up to 6; leave all unchecked to show all).
 
@@ -341,7 +367,7 @@ Export supports CSV and XLSX formats. Import performs a dry-run validation first
 |---|---|---|
 | `FarmOwnedModel` | `farm` (FK to Farm), `created_at`, `updated_at` | All farm-scoped models |
 | `NotesMixin` | `notes` (TextField) | Most models |
-| `CostMixin` | `cost` (DecimalField) | VetRecord, CropRecord, MaintenanceRecord, BuildingMaintenance, HarvestRecord |
+| `CostMixin` | `cost` (DecimalField, optional: blank is stored as 0) | VetRecord, CropRecord, MaintenanceRecord, BuildingMaintenance, HarvestRecord |
 
 ### Accounts
 
@@ -350,7 +376,7 @@ Export supports CSV and XLSX formats. Import performs a dry-run validation first
 | `FarmUser` | Extends AbstractUser + `phone` |
 | `Farm` | `name`, `address`, `members` (M2M via FarmMembership) |
 | `FarmMembership` | `user`, `farm`, `role` (owner/manager/worker/viewer) |
-| `FarmSettings` | `farm` (OneToOne), `usda_nass_api_key`, `weather_enabled`, `soil_enabled`, `crop_prices_enabled`, `unit_system` (`us`/`metric`, default `us`; see [Measurement Units](#measurement-units)), `visible_tickers` (JSONField — list of CME ticker strings to show on dashboard; empty = show all) |
+| `FarmSettings` | `farm` (OneToOne), `usda_nass_api_key`, `weather_enabled`, `soil_enabled`, `crop_prices_enabled`, `unit_system` (`us`/`metric`, default `us`; see [Measurement Units](#measurement-units)), `state` (US postal code or blank, for state crop prices), `visible_tickers` (JSONField — list of CME ticker strings to show on dashboard; empty = show all) |
 
 ### Land
 
@@ -377,8 +403,8 @@ Export supports CSV and XLSX formats. Import performs a dry-run validation first
 
 | Model | Key Fields |
 |---|---|
-| `CropType` | `name` (unique), `usda_code`, `category`, `default_unit` -- global, not farm-scoped |
-| `MarketPrice` | `crop_type`, `year`, `state`, `price_per_unit`, `unit`, `source` -- global |
+| `CropType` | `name` (unique), `usda_code` ("USDA series", e.g. `CORN, GRAIN`), `category`, `default_unit` -- global, not farm-scoped |
+| `MarketPrice` | `crop_type`, `year`, `state` (`US` or a state code), `price_per_unit` (3 decimal places), `unit` (from USDA, e.g. `$/bu`), `source` -- global; property `price_label` (`$4.16/bu`) |
 | `CommodityPrice` | `ticker` (e.g. `ZC=F`), `commodity`, `price`, `unit`, `change`, `change_pct`, `date` -- global CME futures, synced daily |
 | `HarvestRecord` | `field`, `crop_type` (PROTECT), `planting` (optional `CropRecord`, SET_NULL; must agree with field and crop), `harvest_date`, `yield_amount/unit`, `moisture_pct`, `quality_grade`, `cost`, `revenue` |
 
@@ -449,11 +475,11 @@ use cannot be deleted out from under any farm.
 ### USDA NASS QuickStats API
 
 - **URL:** `https://quickstats.nass.usda.gov/api/api_GET/`
-- **Auth:** Free API key required (set `USDA_NASS_API_KEY` in `.env`)
+- **Auth:** Free API key required -- added in Farm Settings (with Crop price sync on), or `USDA_NASS_API_KEY` in `.env` as an install-wide fallback
 - **Rate limit:** 50,000 records per request
-- **Used for:** Annual crop commodity prices by state
+- **Used for:** Annual "price received" by marketing year, national and by state (`agg_level_desc` `NATIONAL` and `STATE`, two requests per crop)
 - **Trigger:** Daily at 2:00 AM via Celery Beat
-- **Data stored:** `MarketPrice` records for years >= 2020
+- **Data stored:** `MarketPrice` records for the last ten years; `state` is `US` for national, otherwise the postal code. A query that matches nothing returns HTTP 400, which is treated as no data
 
 ### Yahoo Finance / CME Futures (yfinance)
 
@@ -525,7 +551,7 @@ REDIS_URL=redis://localhost:6379/0
 USDA_NASS_API_KEY=
 ```
 
-To get a USDA API key (optional, for crop price sync), register at https://quickstats.nass.usda.gov/api/.
+To get a USDA API key (optional, for crop price sync), register at https://quickstats.nass.usda.gov/api/. It usually goes in Farm Settings in the app; the `.env` value is a fallback used when no farm has one.
 
 ### Step 4: Run Migrations and Create a Superuser
 
@@ -755,8 +781,14 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/mcbriderc/farmsteader/ma
 
 Choose **Default settings** for an unprivileged Debian 13 container with 2 CPU,
 2 GB RAM and 10 GB disk on DHCP, or **Advanced** to set the container ID,
-hostname, size, storage, static IP/gateway, VLAN, root password, admin
-account, extra hostnames, USDA key, backups and version. It then:
+hostname, size, storage, static IP/gateway, VLAN, MTU, IPv6, DNS servers and
+search domain, root password, a root SSH public key, admin account, extra
+hostnames, backups and version. Left blank, MTU and DNS come from the
+bridge and the host, and the container gets no IPv6. IPv6 takes `auto` (SLAAC),
+`dhcp`, or a static address in CIDR form plus a gateway. The SSH key can be a
+file on the node (`/root/.ssh/id_ed25519.pub`) or the pasted key; the template
+already allows root to log in with a key (not a password). These answers are
+checked before anything is downloaded or created. It then:
 
 1. picks the storage for the template and for the disk separately (on most
    clusters they differ: templates on `local`, disks on `local-lvm` or ZFS)
@@ -772,8 +804,9 @@ account, extra hostnames, USDA key, backups and version. It then:
 
 If anything fails after the container is created -- including the container
 never getting a network -- it offers to remove the half-built container so a
-re-run starts clean. Cancelling any menu creates
-nothing.
+re-run starts clean. The prompt defaults to **No**, so pressing Enter keeps the
+container for inspection (`pct enter <id>`); an unattended run removes it.
+Cancelling any menu creates nothing.
 
 **Updating:** run the same command again. When FarmSteader containers (tag
 `farmsteader`) exist on the node it offers to update one, which runs that
@@ -787,12 +820,16 @@ FS_CT_DEFAULTS=1 CT_HOSTNAME=barn var_ram=4096 NET=192.168.1.40/24 GATE=192.168.
   FS_ADMIN_EMAIL=you@example.com bash -c "$(curl -fsSL https://raw.githubusercontent.com/mcbriderc/farmsteader/master/ct/farmsteader.sh)"
 ```
 
+The Advanced network and access settings preset the same way: `MTU`, `NET6`,
+`GATE6`, `DNS_SERVER`, `DNS_SEARCH` and `SSH_KEY`.
+
 The answers (including any admin password) reach the container as a `0600`
 file, never on a command line, and are deleted when the install finishes.
 
 **Without a cluster:** `FARMSTEADER_DRY_RUN=1 bash ct/farmsteader.sh` (from a
 checkout) replaces `pct`/`pveam`/`pvesm`/`pvesh` with stubs and prints every
-command it would run. `tests/test_proxmox_installer.py` pins that output: the
+command it would run. The stubs hand out container ID **9999**, which is fake --
+nothing in a dry run touches a real container. `tests/test_proxmox_installer.py` pins that output: the
 exact `pct create` line, template and storage selection, and that cancelling
 creates nothing.
 
@@ -1052,7 +1089,7 @@ farmsteader/
 | `SECRET_KEY` | Yes | -- | Django secret key |
 | `DATABASE_URL` | Yes | -- | PostGIS database URL (`postgis://user:pass@host:port/dbname`) |
 | `REDIS_URL` | No | `redis://localhost:6379/0` | Redis URL for Celery broker |
-| `USDA_NASS_API_KEY` | No | `""` | USDA NASS API key for crop price sync |
+| `USDA_NASS_API_KEY` | No | `""` | USDA NASS API key for crop price sync; fallback for when no farm has one in Farm Settings |
 | `FARMSTEADER_MAX_RESTORE_BYTES` | No | `2147483648` | Largest uncompressed size accepted from an uploaded farm backup |
 | `ALLOWED_HOSTS` | Prod only | -- | Comma-separated list of allowed hostnames |
 | `CSRF_TRUSTED_ORIGINS` | No | `[]` | Scheme-qualified origins (`https://farm.example.com`), unlike `ALLOWED_HOSTS` |

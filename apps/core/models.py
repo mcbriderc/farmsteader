@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 
 
@@ -26,9 +28,26 @@ class NotesMixin(models.Model):
 
 
 class CostMixin(models.Model):
-    """Adds cost tracking to any model."""
+    """Adds cost tracking to any model.
 
-    cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    Cost is optional: a blank one (an emptied form field, an empty CSV cell)
+    is stored as 0, so a free vet visit needs nothing typed. The column stays
+    NOT NULL -- totals and templates never have to cope with a missing cost.
+    """
+
+    cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, blank=True)
 
     class Meta:
         abstract = True
+
+    def _fill_blank_cost(self):
+        if self.cost is None:
+            self.cost = Decimal("0")
+
+    def clean_fields(self, exclude=None):
+        self._fill_blank_cost()
+        super().clean_fields(exclude=exclude)
+
+    def save(self, *args, **kwargs):
+        self._fill_blank_cost()
+        super().save(*args, **kwargs)

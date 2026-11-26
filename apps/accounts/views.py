@@ -70,10 +70,22 @@ def farm_settings(request):
     settings_obj, _ = FarmSettings.objects.get_or_create(farm=farm)
 
     if request.method == "POST":
+        was_enabled = settings_obj.crop_prices_enabled
         form = FarmSettingsForm(request.POST, instance=settings_obj)
         if form.is_valid():
-            form.save()
+            # Compared by value: a blank key box shows up in changed_data even when it
+            # means "keep the saved key".
+            prices_changed = (form.saved_usda_key, was_enabled) != (
+                form.cleaned_data["usda_nass_api_key"], form.cleaned_data["crop_prices_enabled"]
+            )
+            saved = form.save()
             messages.success(request, "Farm settings updated.")
+            if prices_changed and saved.crop_prices_enabled and saved.usda_nass_api_key:
+                # Otherwise the first prices would wait for the nightly run.
+                from apps.crops.tasks import sync_crop_prices
+
+                sync_crop_prices.delay()
+                messages.info(request, "Crop prices are being fetched from USDA in the background.")
             return redirect("accounts:farm_settings")
     else:
         form = FarmSettingsForm(instance=settings_obj)

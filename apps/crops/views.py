@@ -3,10 +3,13 @@ from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
+from apps.accounts.models import FarmSettings
+from apps.core.us_states import STATE_NAMES
 from apps.land.models import CropRecord
 
 from .forms import CropTypeForm, HarvestRecordForm
 from .models import CropType, HarvestRecord, MarketPrice
+from .prices import NATIONAL
 
 HARVEST_LIST = "crops:harvest_list"
 
@@ -17,10 +20,30 @@ def crop_type_list(request):
     return render(request, "crops/crop_type_list.html", {"crop_types": crop_types})
 
 
+PRICE_YEARS = 10
+
+
+def _price_table(crop_type, state):
+    """Rows of (year, national price, state price) for the last PRICE_YEARS years with data.
+
+    Either side may be None: USDA's state coverage has gaps, and a year can have a
+    state figure before the national one is out. Returns (rows, whether any row has
+    a state price).
+    """
+    states = [NATIONAL] + ([state] if state else [])
+    by_year = {}
+    for price in crop_type.prices.filter(state__in=states):
+        by_year.setdefault(price.year, {})[price.state] = price
+    years = sorted(by_year, reverse=True)[:PRICE_YEARS]
+    rows = [(year, by_year[year].get(NATIONAL), by_year[year].get(state)) for year in years]
+    return rows, any(row[2] for row in rows)
+
+
 @require_GET
 def crop_type_detail(request, pk):
     crop_type = get_object_or_404(CropType, pk=pk)
-    prices = crop_type.prices.all()[:10]
+    state = FarmSettings.for_farm(request.farm).state
+    price_rows, state_has_prices = _price_table(crop_type, state)
     harvests = HarvestRecord.objects.filter(farm=request.farm, crop_type=crop_type).select_related("field", "planting")
     plantings = (
         CropRecord.objects.filter(farm=request.farm, crop_type=crop_type)
@@ -29,7 +52,10 @@ def crop_type_detail(request, pk):
 
     return render(request, "crops/crop_type_detail.html", {
         "crop_type": crop_type,
-        "prices": prices,
+        "price_rows": price_rows,
+        "state": state,
+        "state_name": STATE_NAMES.get(state, ""),
+        "state_has_prices": state_has_prices,
         "harvests": harvests,
         "plantings": plantings,
     })

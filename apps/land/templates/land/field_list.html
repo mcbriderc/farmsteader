@@ -15,7 +15,7 @@
     <a href="{% url 'land:parcel_list' %}" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">
       Property Boundaries
     </a>
-    {% if fields %}
+    {% if fields and sources.weather_enabled or fields and sources.soil_enabled %}
     <form method="post" action="{% url 'land:sync_all_fields' %}">
       {% csrf_token %}
       <button type="submit" class="bg-surface border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2 px-4 rounded-lg text-sm transition">

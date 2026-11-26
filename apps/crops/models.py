@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 
 from apps.core.models import CostMixin, FarmOwnedModel, NotesMixin
@@ -6,7 +8,14 @@ from apps.core.models import CostMixin, FarmOwnedModel, NotesMixin
 class CropType(models.Model):
     """Global crop catalog — not farm-scoped."""
     name = models.CharField(max_length=100, unique=True)
-    usda_code = models.CharField(max_length=20, blank=True, help_text="USDA NASS commodity code")
+    usda_code = models.CharField(
+        max_length=80, blank=True, verbose_name="USDA series",
+        help_text=(
+            "USDA NASS price series, e.g. 'CORN, GRAIN' or 'HAY, ALFALFA': a QuickStats description up to "
+            "' - PRICE RECEIVED'. A bare commodity such as 'SOYBEANS' works when USDA has one series for it. "
+            "Blank: no price sync."
+        ),
+    )
     category = models.CharField(max_length=50, blank=True, help_text="e.g. Grain, Oilseed, Vegetable")
     default_unit = models.CharField(max_length=20, default="bushels")
 
@@ -23,7 +32,8 @@ class MarketPrice(models.Model):
     crop_type = models.ForeignKey(CropType, on_delete=models.CASCADE, related_name="prices")
     year = models.IntegerField()
     state = models.CharField(max_length=50, blank=True, help_text="US state or 'US' for national")
-    price_per_unit = models.DecimalField(max_digits=10, decimal_places=2)
+    # Three places: USDA reports per-pound crops to a tenth of a cent (peanuts 0.235).
+    price_per_unit = models.DecimalField(max_digits=12, decimal_places=3)
     unit = models.CharField(max_length=20, default="$/bushel")
     source = models.CharField(max_length=50, default="USDA NASS")
     fetched_at = models.DateTimeField(auto_now=True)
@@ -34,7 +44,20 @@ class MarketPrice(models.Model):
         ordering = ["-year"]
 
     def __str__(self):
-        return f"{self.crop_type.name} {self.year} ({self.state}): ${self.price_per_unit}/{self.unit}"
+        return f"{self.crop_type.name} {self.year} ({self.state}): {self.price_label}"
+
+    @property
+    def display_price(self):
+        """Cents, plus a tenth of a cent only when USDA gave one: 4.16, 0.235."""
+        price = self.price_per_unit
+        return f"{price:.2f}" if price == price.quantize(Decimal("0.01")) else f"{price:.3f}"
+
+    @property
+    def price_label(self):
+        """'$4.16/bu' from a unit stored as '$/bu'; other units are shown after the price."""
+        if self.unit.startswith("$/"):
+            return f"${self.display_price}/{self.unit[2:]}"
+        return f"${self.display_price} {self.unit}".rstrip()
 
 
 class CommodityPrice(models.Model):

@@ -2,6 +2,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 from apps.core.units import UnitSystem
+from apps.core.us_states import US_STATES
 
 
 class FarmUser(AbstractUser):
@@ -62,6 +63,12 @@ class FarmSettings(models.Model):
 
     farm = models.OneToOneField(Farm, on_delete=models.CASCADE, related_name="settings")
 
+    # Location: a USDA state code (state_alpha), used for state crop prices
+    state = models.CharField(
+        max_length=2, choices=US_STATES, blank=True, verbose_name="State",
+        help_text="Crop pages show USDA prices for this state next to the national average.",
+    )
+
     # API keys
     usda_nass_api_key = models.CharField(
         max_length=200, blank=True, verbose_name="USDA NASS API Key",
@@ -94,3 +101,15 @@ class FarmSettings(models.Model):
 
     def __str__(self):
         return f"Settings for {self.farm.name}"
+
+    @classmethod
+    def for_farm(cls, farm):
+        """The farm's settings, or unsaved defaults if its settings page was never saved.
+
+        A farm has no row until someone opens Farm Settings, and the defaults are what
+        it has been getting meanwhile -- weather and soil on, crop prices off.
+        """
+        try:
+            return farm.settings
+        except cls.DoesNotExist:
+            return cls(farm=farm)

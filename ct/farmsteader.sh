@@ -14,6 +14,10 @@
 #   FARMSTEADER_DRY_RUN=1  stub out pct/pveam/pvesm and print what would run
 #   FUNC_BASE_URL          where the helper scripts are fetched from
 #   var_cpu var_ram var_disk   override the default container size
+#   MTU NET6 GATE6 DNS_SERVER DNS_SEARCH SSH_KEY   the Advanced network and
+#                          access settings (see advanced_settings); blank = default
+#   FS_USDA_KEY            USDA NASS key for crop prices (no prompt: Farm Settings
+#                          in the app is the usual place to add it)
 set -Eeuo pipefail
 
 APP="FarmSteader"
@@ -53,6 +57,8 @@ default_settings() {
     CT_HOSTNAME=${CT_HOSTNAME:-farmsteader}
     CORES=$var_cpu RAM=$var_ram DISK=$var_disk
     BRIDGE=${BRIDGE:-vmbr0} NET=${NET:-dhcp} GATE=${GATE:-} VLAN=${VLAN:-} ROOT_PW=${ROOT_PW:-}
+    MTU=${MTU:-} NET6=${NET6:-} GATE6=${GATE6:-}
+    DNS_SERVER=${DNS_SERVER:-} DNS_SEARCH=${DNS_SEARCH:-} SSH_KEY=${SSH_KEY:-}
     ROOTFS_STORE=${ROOTFS_STORE:-$(select_storage rootdir)}
     TMPL_STORE=${TMPL_STORE:-$(select_storage vztmpl)}
     FS_VERSION=${FS_VERSION:-latest} FS_ADMIN_USER=${FS_ADMIN_USER:-admin}
@@ -75,7 +81,16 @@ advanced_settings() {
         GATE=$(wt_input "Network" "Gateway:" "")
     fi
     VLAN=$(wt_input "Network" "VLAN tag (blank for none):" "")
+    MTU=$(wt_input "Network" "MTU (blank: the bridge's own, usually 1500):" "")
+    NET6=$(wt_input "IPv6" "IPv6: blank for none, 'auto' (SLAAC), 'dhcp', or a static address in CIDR form (2001:db8::40/64):" "")
+    if [ -n "$NET6" ] && [ "$NET6" != auto ] && [ "$NET6" != dhcp ]; then
+        GATE6=$(wt_input "IPv6" "IPv6 gateway:" "")
+    fi
+    DNS_SERVER=$(wt_input "DNS" "DNS server(s), space-separated (blank: use the host's):" "")
+    DNS_SEARCH=$(wt_input "DNS" "DNS search domain (blank: use the host's):" "")
     ROOT_PW=$(wt_password "Root password" "Container root password (blank: none; use 'pct enter $CTID'):")
+    SSH_KEY=$(wt_input "SSH key" \
+        "Root SSH public key: a file on this node (e.g. /root/.ssh/id_ed25519.pub) or the key itself.\nBlank: none." "")
 
     FS_ADMIN_USER=$(wt_input "Admin account" "FarmSteader admin username:" "$FS_ADMIN_USER")
     FS_ADMIN_EMAIL=$(wt_input "Admin account" "Admin email (optional):" "")
@@ -86,7 +101,6 @@ advanced_settings() {
     fi
     FS_ALLOWED_HOSTS=$(wt_input "Site address" \
         "Extra hostnames/IPs the site should answer to, comma-separated.\nBlank: the container's own IP and hostname (recommended)." "")
-    FS_USDA_KEY=$(wt_input "Integrations" "USDA NASS API key (optional; crop price sync is skipped without it):" "")
     if wt_yesno "Backups" "Install a nightly database backup (kept 14 days)?"; then FS_BACKUPS=1; else FS_BACKUPS=0; fi
     FS_VERSION=$(wt_input "Version" "FarmSteader version to install ('latest' or e.g. 0.3.0):" "latest")
 }
@@ -94,10 +108,50 @@ advanced_settings() {
 show_settings() {
     cat <<EOF
   Container ${BOLD}$CTID${CL} ($CT_HOSTNAME): $CORES cores, ${RAM} MB RAM, ${DISK} GB on $ROOTFS_STORE
-  Network:   $BRIDGE, ${NET}${GATE:+ via $GATE}${VLAN:+, VLAN $VLAN}
+  Network:   $BRIDGE, ${NET}${GATE:+ via $GATE}${VLAN:+, VLAN $VLAN}${MTU:+, MTU $MTU}${NET6:+, IPv6 $NET6}${GATE6:+ via $GATE6}
+EOF
+    if [ -n "$DNS_SERVER$DNS_SEARCH" ]; then
+        # No apostrophes inside ${...:-...}: bash reads one as an opening quote.
+        printf '  DNS:       %s\n' "${DNS_SERVER:-servers from the host}${DNS_SEARCH:+, search $DNS_SEARCH}"
+    fi
+    if [ -n "$SSH_KEY" ]; then
+        printf '  SSH:       root login with a public key\n'
+    fi
+    cat <<EOF
   Template:  newest Debian 13 standard, stored on $TMPL_STORE
   App:       FarmSteader $FS_VERSION, admin '$FS_ADMIN_USER', backups $([ "$FS_BACKUPS" = 1 ] && echo on || echo off)
 EOF
+}
+
+# --- Validate ----------------------------------------------------------------
+
+# Runs before anything is created, for menu answers and presets alike. Proxmox
+# would reject most of these itself, but only after the template download, and
+# in terms of pct's option syntax rather than the question that was asked.
+SSH_KEY_FILE=""
+validate_settings() {
+    if [ -n "$MTU" ]; then
+        { [[ "$MTU" =~ ^[0-9]+$ ]] && [ "$MTU" -ge 576 ] && [ "$MTU" -le 65520 ]; } \
+            || die "MTU '$MTU' is not a number from 576 to 65520"
+    fi
+    case "$NET6" in
+        ""|auto|dhcp) [ -z "$GATE6" ] || die "an IPv6 gateway only applies to a static IPv6 address" ;;
+        *:*/*) ;;
+        *) die "IPv6 '$NET6' is not 'auto', 'dhcp' or an address in CIDR form (2001:db8::40/64)" ;;
+    esac
+    if [ -n "$SSH_KEY" ]; then
+        if [ -f "$SSH_KEY" ]; then
+            SSH_KEY_FILE=$SSH_KEY
+        elif [[ "$SSH_KEY" =~ ^(ssh-|ecdsa-|sk-) ]]; then
+            SSH_KEY_FILE="$WORK/ssh_authorized_keys"
+            printf '%s\n' "$SSH_KEY" >"$SSH_KEY_FILE"
+        else
+            die "SSH key '$SSH_KEY' is neither a file on this node nor a public key (ssh-ed25519 ...)"
+        fi
+        # Catches the easy mistake of naming id_ed25519 instead of id_ed25519.pub.
+        grep -Eq '^(ssh-|ecdsa-|sk-)' "$SSH_KEY_FILE" \
+            || die "$SSH_KEY_FILE does not hold a public key -- was that the private key?"
+    fi
 }
 
 # --- Create ------------------------------------------------------------------
@@ -118,6 +172,9 @@ build_container() {
     local net="name=eth0,bridge=$BRIDGE,ip=$NET"
     [ -n "$GATE" ] && net+=",gw=$GATE"
     [ -n "$VLAN" ] && net+=",tag=$VLAN"
+    [ -n "$MTU" ] && net+=",mtu=$MTU"
+    [ -n "$NET6" ] && net+=",ip6=$NET6"
+    [ -n "$GATE6" ] && net+=",gw6=$GATE6"
     # nesting=1 keeps systemd and journald happy in an unprivileged container.
     # (keyctl is a Docker/Podman requirement, not ours.) Swap lets the one
     # memory spike -- the price-sync task importing pandas -- swap instead of
@@ -128,6 +185,11 @@ build_container() {
         --features nesting=1 --unprivileged 1 --onboot 1
         --ostype debian --timezone host --tags farmsteader)
     [ -n "$ROOT_PW" ] && args+=(--password "$ROOT_PW")
+    [ -n "$DNS_SERVER" ] && args+=(--nameserver "$DNS_SERVER")
+    [ -n "$DNS_SEARCH" ] && args+=(--searchdomain "$DNS_SEARCH")
+    # The Debian template ships openssh-server with root limited to key login
+    # (prohibit-password), so installing the key is all it takes.
+    [ -n "$SSH_KEY_FILE" ] && args+=(--ssh-public-keys "$SSH_KEY_FILE")
 
     msg_info "Creating container $CTID"
     pct "${args[@]}" >/dev/null
@@ -249,6 +311,7 @@ else
         advanced "Advanced settings")
     if [ "$mode" = advanced ]; then advanced_settings; else default_settings; fi
 fi
+validate_settings
 
 echo
 show_settings

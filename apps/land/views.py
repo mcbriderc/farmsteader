@@ -10,6 +10,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
 from apps.accounts.mixins import FarmAccessMixin
+from apps.accounts.models import FarmSettings
 from apps.core.units import units_for
 
 from .forms import CropRecordForm, FieldForm, ParcelForm, SoilSampleForm
@@ -18,6 +19,7 @@ from .tasks import sync_soil_data_for_field, sync_weather_for_field
 
 FIELD_DETAIL = "land:field_detail"
 PARCEL_DETAIL = "land:parcel_detail"
+SOURCE_OFF = "{} sync is off in Farm Settings."
 
 
 def _feature(obj, url_name, units):
@@ -42,7 +44,9 @@ def _feature(obj, url_name, units):
 @require_GET
 def field_list(request):
     fields = Field.objects.filter(farm=request.farm)
-    return render(request, "land/field_list.html", {"fields": fields})
+    return render(request, "land/field_list.html", {
+        "fields": fields, "sources": FarmSettings.for_farm(request.farm),
+    })
 
 
 @require_GET
@@ -126,12 +130,16 @@ def field_detail(request, pk):
         "weather_count": len(weather_all),
         "soil_samples": soil_samples,
         "crop_records": crop_records,
+        "sources": FarmSettings.for_farm(request.farm),
     })
 
 
 @require_POST
 def field_sync_weather(request, pk):
     field = get_object_or_404(Field, pk=pk, farm=request.farm)
+    if not FarmSettings.for_farm(request.farm).weather_enabled:
+        messages.warning(request, SOURCE_OFF.format("Weather"))
+        return redirect(FIELD_DETAIL, pk=field.pk)
     from .services.weather import fetch_weather_for_field
     fetch_weather_for_field(field)
     messages.success(request, "Weather synced.")
@@ -141,6 +149,9 @@ def field_sync_weather(request, pk):
 @require_POST
 def field_sync_soil(request, pk):
     field = get_object_or_404(Field, pk=pk, farm=request.farm)
+    if not FarmSettings.for_farm(request.farm).soil_enabled:
+        messages.warning(request, SOURCE_OFF.format("Soil data"))
+        return redirect(FIELD_DETAIL, pk=field.pk)
     from .services.soil import fetch_soil_for_field
     try:
         sample = fetch_soil_for_field(field)
@@ -159,12 +170,20 @@ def sync_all_fields(request):
     from .services.soil import fetch_soil_for_field
     from .services.weather import fetch_weather_for_field
 
+    sources = FarmSettings.for_farm(request.farm)
+    fetchers = [f for on, f in ((sources.weather_enabled, fetch_weather_for_field),
+                                (sources.soil_enabled, fetch_soil_for_field)) if on]
+    if not fetchers:
+        messages.warning(request, "Weather and soil data sync are both off in Farm Settings.")
+        return redirect("land:field_list")
+    what = " & ".join(n for on, n in ((sources.weather_enabled, "weather"), (sources.soil_enabled, "soil")) if on)
+
     fields = list(Field.objects.filter(farm=request.farm))
     synced, failed = 0, 0
     for field in fields:
         try:
-            fetch_weather_for_field(field)
-            fetch_soil_for_field(field)
+            for fetch in fetchers:
+                fetch(field)
             synced += 1
         except Exception:
             failed += 1
@@ -172,7 +191,7 @@ def sync_all_fields(request):
     if failed:
         messages.warning(request, f"Synced {synced} field(s); {failed} failed (check logs).")
     else:
-        messages.success(request, f"Synced weather & soil for {synced} field(s).")
+        messages.success(request, f"Synced {what} for {synced} field(s).")
     return redirect("land:field_list")
 
 

@@ -59,58 +59,36 @@ def sync_commodity_prices():
     logger.info("Synced %d commodity prices", synced)
 
 
+def usda_api_key():
+    """The key the price sync uses, or "" when there is none.
+
+    Prices are public and shared by every farm on the install, so any farm that
+    has crop price sync on can supply the key; the key only identifies the caller
+    to USDA. The oldest such farm wins, so the choice is stable. A key in the
+    server config (``USDA_NASS_API_KEY``) is the fallback, which keeps installs
+    that set it at install time syncing without anyone opening Farm Settings.
+    """
+    from apps.accounts.models import FarmSettings
+
+    farm_key = (
+        FarmSettings.objects.filter(crop_prices_enabled=True)
+        .exclude(usda_nass_api_key="")
+        .order_by("farm_id")
+        .values_list("usda_nass_api_key", flat=True)
+        .first()
+    )
+    return (farm_key or getattr(settings, "USDA_NASS_API_KEY", "") or "").strip()
+
+
 @shared_task
 def sync_crop_prices():
-    """Sync crop prices from USDA NASS QuickStats API."""
-    import httpx
+    """Sync national and state crop prices from USDA NASS QuickStats (see crops.prices)."""
+    from apps.crops.prices import sync_all
 
-    from apps.crops.models import CropType, MarketPrice
-
-    api_key = getattr(settings, "USDA_NASS_API_KEY", "") or ""
+    api_key = usda_api_key()
     if not api_key:
-        logger.warning("USDA_NASS_API_KEY not configured, skipping price sync")
+        logger.info("No USDA NASS API key in any farm's settings or the server config, skipping price sync")
         return
 
-    base_url = "https://quickstats.nass.usda.gov/api/api_GET/"
-    crop_types = CropType.objects.exclude(usda_code="")
-
-    synced = 0
-    for crop_type in crop_types:
-        params = {
-            "key": api_key,
-            "commodity_desc": crop_type.name.upper(),
-            "statisticcat_desc": "PRICE RECEIVED",
-            "agg_level_desc": "NATIONAL",
-            "freq_desc": "ANNUAL",
-            "format": "JSON",
-            "year__GE": "2020",
-        }
-
-        try:
-            with httpx.Client(timeout=30) as client:
-                response = client.get(base_url, params=params)
-                response.raise_for_status()
-                data = response.json()
-        except httpx.HTTPError as e:
-            logger.error("USDA NASS fetch failed for %s: %s", crop_type.name, e)
-            continue
-
-        for item in data.get("data", []):
-            value = item.get("Value", "").replace(",", "")
-            try:
-                price = float(value)
-            except (ValueError, TypeError):
-                continue
-
-            MarketPrice.objects.update_or_create(
-                crop_type=crop_type,
-                year=int(item["year"]),
-                state=item.get("state_name", "US"),
-                defaults={
-                    "price_per_unit": price,
-                    "unit": f"$/{crop_type.default_unit}",
-                },
-            )
-            synced += 1
-
-    logger.info("USDA NASS: synced %d price records", synced)
+    crops, stored = sync_all(api_key)
+    logger.info("USDA NASS: stored %d prices for %d crops", stored, crops)

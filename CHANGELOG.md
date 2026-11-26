@@ -13,6 +13,48 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-25
+
+### Added
+
+- **More Proxmox installer options.** Advanced settings can now set the MTU,
+  IPv6 (automatic, DHCP or static), DNS servers and search domain, and an SSH
+  public key for root. Each can also be preset for unattended installs. Bad
+  answers are caught before anything is created.
+- **State crop prices.** Choose your state in Farm Settings and each crop's
+  page shows USDA's price for that state next to the national average. USDA
+  does not report every crop in every state; the page says when it has no
+  figure for yours.
+
+### Changed
+
+- **Cost is optional** on vet records, plantings, harvests, and equipment and
+  building maintenance. Leave it blank for a free visit or job and it is saved as
+  0. These forms used to refuse an empty cost box, so you had to type 0.
+- **Proxmox installer:** if an install fails after the container is created,
+  the "Remove container?" prompt now defaults to No, so pressing Enter keeps the
+  container for inspection instead of deleting it.
+- The Proxmox installer no longer asks for a USDA key; add it in Farm Settings
+  after installing. `FS_USDA_KEY` still sets one for unattended installs.
+
+### Fixed
+
+- **Crop prices now sync for every crop USDA prices.** Corn, wheat, hay,
+  sorghum, dry beans and sunflowers never got a price, because the sync asked
+  USDA by crop name. Each crop type now has a USDA series (for example
+  "CORN, GRAIN" or "HAY, ALFALFA"), and the built-in crops are updated
+  automatically. Where USDA reports several prices for a crop and year, the
+  marketing-year price for that exact series is kept; before, whichever came
+  last was stored. Prices show their real unit, such as $/ton for hay, and
+  per-pound prices keep their tenth of a cent.
+- **Farm Settings now does what it says.** The USDA key entered there was saved
+  but never used: crop prices only synced with a key given at install time. It
+  is now used, and saving it starts a price fetch straight away. The Weather and
+  Soil data switches were ignored too; turning one off now stops that sync for
+  the farm.
+- Saving Farm Settings no longer erases the saved USDA key. Leave the box blank
+  to keep it, or tick "Remove the saved key".
+
 ## [0.9.0] - 2026-11-01
 
 ### Added
@@ -285,7 +327,7 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.10.0...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
 [0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0
@@ -295,3 +337,4 @@ checkout-and-run-it-yourself.
 [0.7.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.7.0
 [0.8.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.8.0
 [0.9.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.9.0
+[0.10.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.10.0
