@@ -13,6 +13,15 @@ extracts that section as the published release notes. Keep the headings in the
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-25
+
+### Fixed
+
+- **Container image.** 0.10.0 was released without a container image: the
+  image build tool used by the release job changed upstream and could no longer
+  build it. The tool is now pinned to a working version, and this release
+  publishes an image again. Nothing else changed from 0.10.0.
+
 ## [0.10.0] - 2026-11-25
 
 ### Added
@@ -327,7 +336,7 @@ checkout-and-run-it-yourself.
   stack includes Django 6.1, redis-py 8 and django-debug-toolbar 8, so an
   existing development venv should run `pip install -r requirements/dev.txt`.
 
-[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/mcbriderc/farmsteader/compare/v0.10.1...HEAD
 [0.2.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.2.1
 [0.3.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.3.0
 [0.4.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.4.0
@@ -338,3 +347,4 @@ checkout-and-run-it-yourself.
 [0.8.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.8.0
 [0.9.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.9.0
 [0.10.0]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.10.0
+[0.10.1]: https://github.com/mcbriderc/farmsteader/releases/tag/v0.10.1

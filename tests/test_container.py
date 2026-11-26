@@ -99,3 +99,12 @@ class TestReleaseJob:
         workflow = yaml.safe_load(RELEASE_WORKFLOW.read_text())
         assert workflow["jobs"]["image"]["needs"] == "release"
         assert workflow["jobs"]["release"]["needs"] == "test"
+
+    @pytest.mark.skipif(not RELEASE_WORKFLOW.exists(), reason="the public snapshot leaves out .forgejo")
+    def test_the_image_builder_is_pinned(self):
+        """`buildah/stable:latest` moved to 1.46, which cannot build inside this job's
+        container, and v0.10.0 shipped without an image. An immutable tag only moves
+        when someone edits it."""
+        image = yaml.safe_load(RELEASE_WORKFLOW.read_text())["jobs"]["image"]["container"]["image"]
+        assert image.startswith("quay.io/buildah/stable:v")
+        assert image.endswith("-immutable")

@@ -875,6 +875,9 @@ only declares success when `/healthz` reports the version it installed.
 The published image is `ghcr.io/mcbriderc/farmsteader`, built for x86_64 from the
 same tarball as every other install. Compose runs it alongside PostgreSQL and Redis.
 
+Every release has an image tagged with its version, except **0.10.0**, whose image build
+failed; 0.10.1 is the same application with the image restored.
+
 ### Setup
 
 ```bash
